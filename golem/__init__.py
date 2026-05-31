@@ -1,0 +1,2 @@
+"""GOLEM package."""
+
