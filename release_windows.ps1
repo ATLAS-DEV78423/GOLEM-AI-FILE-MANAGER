@@ -63,6 +63,9 @@ function Sign-Artifact {
 }
 
 $version = Get-GolemVersion
+if ($version -match '^v(.+)$') {
+  $version = $Matches[1]
+}
 Write-Host "Building Windows installers for version $version"
 
 & .\build_windows_installer.ps1

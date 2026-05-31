@@ -6,6 +6,9 @@ cd "$ROOT"
 
 PYTHON_BIN="${PYTHON_BIN:-python3}"
 VERSION="${GOLEM_VERSION:-2.0.0}"
+if [[ "$VERSION" == v* ]]; then
+  VERSION="${VERSION#v}"
+fi
 DIST_DIR="$ROOT/dist"
 APP_BUNDLE="$DIST_DIR/GOLEM.app"
 DMG_PATH="$DIST_DIR/GOLEM-macOS.dmg"

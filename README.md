@@ -1,5 +1,7 @@
 # GOLEM AI File Manager
 
+[![release](https://github.com/ATLAS-DEV78423/GOLEM-AI-FILE-MANAGER/actions/workflows/release.yml/badge.svg)](https://github.com/ATLAS-DEV78423/GOLEM-AI-FILE-MANAGER/actions/workflows/release.yml)
+
 GOLEM is a local-first desktop file manager for Windows and macOS. It watches a folder, extracts text from supported files, writes Obsidian notes, organizes files into category folders, and gives you a fuzzy search popup for finding files by description.
 
 ## What it does
@@ -38,9 +40,18 @@ GOLEM is a local-first desktop file manager for Windows and macOS. It watches a 
 
 ## Release artifacts
 
+- GitHub Releases: use the tagged release assets for one-click downloads
 - Windows release scripts: [release_windows.ps1](release_windows.ps1), [build_windows_installer.ps1](build_windows_installer.ps1)
 - macOS release scripts: [release_macos.sh](release_macos.sh), [build_macos_installer.sh](build_macos_installer.sh)
 - Release checklist: [RELEASE_CHECKLIST.md](RELEASE_CHECKLIST.md)
+
+## Downloads
+
+Once the release workflow runs on a tag like `v2.0.0`, the GitHub Release page will contain:
+
+- `GOLEM-<version>-windows-installer.exe`
+- `GOLEM-<version>-windows.exe`
+- `GOLEM-<version>-macOS.dmg`
 
 ## Legal
 
