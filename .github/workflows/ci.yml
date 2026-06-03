@@ -113,3 +113,43 @@ jobs:
           path: |
             dist/GOLEM-linux.tar.gz
             dist/*.AppImage
+
+      - name: Create draft release (Linux runner only)
+        if: matrix.os == 'ubuntu-latest' && github.ref == 'refs/heads/main'
+        uses: softprops/action-gh-release@v1
+        with:
+          tag_name: ${{ github.sha }}
+          name: "Draft release for ${{ github.sha }}"
+          body: |
+            Automated draft release created by CI for commit ${{ github.sha }}.
+          draft: true
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  smoke:
+    name: visual-smoke (${{ github.sha }})
+    needs: build
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/main'
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Download Linux artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: linux-${{ github.sha }}
+          path: dist
+
+      - name: Install dependencies for smoke test
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y xvfb xauth procps
+
+      - name: Make smoke script executable
+        run: |
+          chmod +x scripts/smoke_test_linux.sh
+
+      - name: Run visual smoke test
+        run: |
+          ./scripts/smoke_test_linux.sh
