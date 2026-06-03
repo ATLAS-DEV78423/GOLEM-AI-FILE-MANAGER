@@ -100,6 +100,17 @@ GitHub Releases publishes:
 - `SHA256SUMS.txt` — Checksums for every artifact
 - `golem.spdx.json` — SPDX SBOM
 
+Additional artifacts produced by CI on `main`:
+
+- `GOLEM-<version>-linux.tar.gz` — One-folder tarball (one-click run of the bundled binary)
+- `GOLEM-<version>.AppImage` — Optional AppImage when `appimagetool` is available on the runner
+
+CI behavior and releases:
+
+- A draft GitHub Release is automatically created on successful CI runs on `main` (the draft is not published automatically).
+- A visual smoke test runs on the `ubuntu-latest` runner to exercise the Linux build briefly under `xvfb`.
+- This repository uses `main` as the single source-of-truth branch. Artifacts are built from `main` and attached to draft releases for manual publishing.
+
 See [docs/RELEASE.md](docs/RELEASE.md) for the build and signing
 process.
 
