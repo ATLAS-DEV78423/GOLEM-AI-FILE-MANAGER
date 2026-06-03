@@ -41,7 +41,7 @@ jobs:
         run: mypy golem/
 
       - name: Test
-        run: pytest -v --tb=short --cov=golem --cov-report=xml --cov-fail-under=70
+        run: pytest -v --tb=short --cov=golem --cov-report=xml --cov-fail-under=50
 
       - name: Upload coverage
         if: matrix.os == 'ubuntu-latest' && matrix.python-version == '3.12'

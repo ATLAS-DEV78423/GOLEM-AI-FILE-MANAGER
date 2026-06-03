@@ -80,9 +80,9 @@ source = ["golem"]
 omit = ["tests/*", "installer.py"]
 
 [tool.coverage.report]
-# The package is ~50% Tk-bound UI code. The 70% target was aspirational
-# and not realistic without spinning up a real display + testing every
-# widget interaction. 50% reflects the realistic ceiling for a
-# headless test run. The CI badge will surface drops below this.
+# The package is ~50% Tk-bound UI code. A much higher coverage target was
+# aspirational and not realistic without spinning up a real display + testing
+# every widget interaction. 50% reflects the realistic ceiling for a headless
+# test run. The CI badge will surface drops below this.
 fail_under = 50
 show_missing = true

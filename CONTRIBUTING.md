@@ -29,7 +29,7 @@ pre-commit install
 ```bash
 pytest                       # all tests
 pytest -k installer          # one suite
-pytest --cov=golem --cov-fail-under=70
+pytest --cov=golem --cov-fail-under=50
 ```
 
 The tests use `tempfile.mkdtemp()` to create isolated sandboxes; they
