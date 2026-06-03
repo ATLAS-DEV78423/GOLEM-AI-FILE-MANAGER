@@ -17,15 +17,32 @@ a = Analysis(
     binaries=[],
     datas=datas,
     hiddenimports=[
+        # Hotkey backends. The runtime picks one of these based on what
+        # the platform supports; both must be packaged.
         "keyboard",
         "pynput",
+        "pynput.keyboard",
+        # Tray icon. The runtime imports PIL lazily inside _build_icon_image.
         "pystray",
         "PIL",
         "PIL.Image",
         "PIL.ImageDraw",
+        # Office / PDF extractors. openpyxl lazy-imports its cell writers,
+        # so the module name alone is not enough on some PyInstaller
+        # versions — listing the submodules is harmless and prevents
+        # "ModuleNotFoundError" at runtime.
         "openpyxl",
+        "openpyxl.cell",
+        "openpyxl.cell._writer",
+        "openpyxl.worksheet",
         "pypdf",
         "docx",
+        # DPAPI / Windows API. ctypes.wintypes is a submodule that
+        # PyInstaller's static analysis does not always pick up. On
+        # non-Windows this import is a no-op (the code path is guarded
+        # by ``if _is_windows()``), so the hidden import is harmless.
+        "ctypes",
+        "ctypes.wintypes",
     ],
     hookspath=[],
     hooksconfig={},

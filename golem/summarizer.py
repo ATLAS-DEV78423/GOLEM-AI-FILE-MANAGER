@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import logging
 import os
 import re
 import time
@@ -33,6 +34,8 @@ class FileMetadata:
 
 
 class BaseSummarizer:
+    fallback: "BaseSummarizer | None" = None
+
     def get_file_metadata(self, filename: str, text_snippet: str) -> FileMetadata:
         raise NotImplementedError
 
@@ -62,6 +65,21 @@ PROVIDER_SPECS: tuple[ProviderSpec, ...] = (
 )
 
 PROVIDER_SPEC_MAP = {spec.key: spec for spec in PROVIDER_SPECS}
+
+
+# Environment variable names for each provider. When the user has not
+# entered a key in the onboarding wizard, ``build_summarizer`` will fall
+# back to these. Set the variable in the user's environment (e.g. via the
+# system Settings) and GOLEM will pick it up automatically.
+PROVIDER_ENV_KEYS: dict[str, str] = {
+    "groq": "GROQ_API_KEY",
+    "openai": "OPENAI_API_KEY",
+    "openrouter": "OPENROUTER_API_KEY",
+    "xai": "XAI_API_KEY",
+    "nvidia_nim": "NVIDIA_NIM_API_KEY",
+    "anthropic": "ANTHROPIC_API_KEY",
+    "gemini": "GOOGLE_API_KEY",
+}
 
 
 def provider_choices() -> list[tuple[str, str]]:
@@ -146,20 +164,59 @@ class HeuristicSummarizer(BaseSummarizer):
         return DEFAULT_CATEGORY
 
 
+# Module-level rate limiter shared across all summarizer instances, keyed by
+# the API key. Different providers (or different accounts) get their own slot.
+# Default: one call per second with a burst of 4 (then refill at 1/sec).
+_RATE_LIMITER_LOCK = threading.Lock()
+_RATE_LIMITER_STATE: dict[str, tuple[float, float]] = {}  # key -> (tokens, last_refill)
+
+
+class _RateLimiter:
+    """Token-bucket limiter for outbound API calls.
+
+    Per-bucket defaults: 1 token/second refill, burst of 4. The bucket
+    is identified by an arbitrary string (we use the API key, so the
+    same key on the same provider shares the bucket regardless of how
+    many summarizer instances exist).
+    """
+
+    def __init__(self, refill_per_sec: float = 1.0, burst: float = 4.0) -> None:
+        self.refill_per_sec = refill_per_sec
+        self.burst = burst
+
+    def take(self, key: str, cost: float = 1.0) -> None:
+        while True:
+            with _RATE_LIMITER_LOCK:
+                tokens, last = _RATE_LIMITER_STATE.get(key, (self.burst, time.monotonic()))
+                now = time.monotonic()
+                tokens = min(self.burst, tokens + (now - last) * self.refill_per_sec)
+                if tokens >= cost:
+                    _RATE_LIMITER_STATE[key] = (tokens - cost, now)
+                    return
+                # Not enough tokens — sleep until we have one, then retry.
+                deficit = cost - tokens
+                sleep_for = deficit / self.refill_per_sec
+                _RATE_LIMITER_STATE[key] = (tokens, now)
+            time.sleep(min(0.5, sleep_for))
+
+
 class _LLMBaseSummarizer(BaseSummarizer):
-    def __init__(self, api_key: str | None = None, model: str = "", fallback: BaseSummarizer | None = None):
+    def __init__(
+        self,
+        api_key: str | None = None,
+        model: str = "",
+        fallback: BaseSummarizer | None = None,
+        rate_limiter: _RateLimiter | None = None,
+    ):
         self.api_key = api_key or ""
         self.model = model
         self.fallback = fallback or HeuristicSummarizer()
-        self._last_call = 0.0
         self._request_lock = threading.Lock()
+        self._rate_limiter = rate_limiter or _RateLimiter()
+        self._rate_key = self.api_key or "default"
 
     def _throttle(self) -> None:
-        now = time.time()
-        elapsed = now - self._last_call
-        if elapsed < 1.0:
-            time.sleep(1.0 - elapsed)
-        self._last_call = time.time()
+        self._rate_limiter.take(self._rate_key)
 
     def _execute_request(self, req: request.Request) -> dict[str, Any]:
         self._throttle()
@@ -168,7 +225,14 @@ class _LLMBaseSummarizer(BaseSummarizer):
                 data = json.loads(response.read().decode("utf-8"))
         except error.HTTPError as exc:
             if exc.code == 429:
-                time.sleep(60)
+                # Honor Retry-After if the provider sent one; otherwise wait 60s.
+                retry_after = exc.headers.get("Retry-After") if exc.headers else None
+                try:
+                    wait = float(retry_after) if retry_after else 60.0
+                except (TypeError, ValueError):
+                    wait = 60.0
+                logging.warning("Rate limited (429); waiting %.1fs", wait)
+                time.sleep(wait)
                 self._throttle()
                 with request.urlopen(req, timeout=60) as response:
                     data = json.loads(response.read().decode("utf-8"))
@@ -199,15 +263,17 @@ class _LLMBaseSummarizer(BaseSummarizer):
             if category not in allowed_categories:
                 category = DEFAULT_CATEGORY
             clean_name = str(parsed.get("clean_name") or humanize_filename(filename)).strip() or humanize_filename(filename)
+            fb = self.fallback or HeuristicSummarizer()
             return FileMetadata(
-                summary=str(parsed.get("summary") or self.fallback.get_file_metadata(filename, text_snippet).summary),
+                summary=str(parsed.get("summary") or fb.get_file_metadata(filename, text_snippet).summary),
                 tags=normalize_tags([str(tag) for tag in tags]),
                 key_contents=str(parsed.get("key_contents") or ""),
                 category=category,
                 clean_name=clean_name,
             )
         except Exception:
-            return self.fallback.get_file_metadata(filename, text_snippet)
+            fb = self.fallback or HeuristicSummarizer()
+            return fb.get_file_metadata(filename, text_snippet)
 
     def _chat_completion(self, system_prompt: str, user_prompt: str, model: str) -> str:
         raise NotImplementedError
@@ -238,11 +304,13 @@ class _LLMBaseSummarizer(BaseSummarizer):
         try:
             return self._request_metadata(filename, text_snippet, system_prompt, user_prompt)
         except Exception:
-            return self.fallback.get_file_metadata(filename, text_snippet)
+            fb = self.fallback or HeuristicSummarizer()
+            return fb.get_file_metadata(filename, text_snippet)
 
     def search_rerank(self, query: str, candidates: list[dict[str, Any]]) -> str:
         if not self.api_key or not candidates:
-            return self.fallback.search_rerank(query, candidates)
+            fb = self.fallback or HeuristicSummarizer()
+            return fb.search_rerank(query, candidates)
         system_prompt = (
             "You are a file finder. Given a user description and candidate files, return only the filepath of the best match. "
             "If no file matches well, return exactly NOT_FOUND."
@@ -257,7 +325,8 @@ class _LLMBaseSummarizer(BaseSummarizer):
                 return content
             return content.splitlines()[0].strip()
         except Exception:
-            return self.fallback.search_rerank(query, candidates)
+            fb = self.fallback or HeuristicSummarizer()
+            return fb.search_rerank(query, candidates)
 
 
 class OpenAICompatibleSummarizer(_LLMBaseSummarizer):
@@ -393,14 +462,83 @@ class GroqSummarizer(OpenAICompatibleSummarizer):
 def build_summarizer(provider: str, api_key: str | None, model: str = "", base_url: str = "") -> BaseSummarizer:
     provider_key = (provider or "heuristic").strip().lower()
     spec = PROVIDER_SPEC_MAP.get(provider_key)
-    if not api_key or provider_key in {"", "heuristic", "none", "off"} or spec is None:
+    # If the user did not paste a key, fall back to the provider's
+    # conventional environment variable. This is opt-in: a user who has
+    # not configured a key and has not set the env var gets the heuristic
+    # summarizer, which is always safe.
+    effective_key = (api_key or "").strip()
+    if not effective_key:
+        env_var = PROVIDER_ENV_KEYS.get(provider_key)
+        if env_var:
+            effective_key = os.getenv(env_var, "").strip()
+    if not effective_key or provider_key in {"", "heuristic", "none", "off"} or spec is None:
         return HeuristicSummarizer()
     selected_model = model.strip() or spec.default_model
     if spec.kind == "anthropic":
-        return AnthropicSummarizer(api_key=api_key, model=selected_model)
+        return AnthropicSummarizer(api_key=effective_key, model=selected_model)
     if spec.kind == "gemini":
-        return GeminiSummarizer(api_key=api_key, model=selected_model)
+        return GeminiSummarizer(api_key=effective_key, model=selected_model)
     selected_base_url = base_url.strip() or spec.base_url
     if provider_key == "custom_openai" and not selected_base_url:
         return HeuristicSummarizer()
-    return OpenAICompatibleSummarizer(api_key=api_key, model=selected_model, base_url=selected_base_url, provider_key=provider_key)
+    return OpenAICompatibleSummarizer(api_key=effective_key, model=selected_model, base_url=selected_base_url, provider_key=provider_key)
+
+
+def check_provider_connection(
+    provider: str,
+    api_key: str | None,
+    model: str = "",
+    base_url: str = "",
+) -> tuple[bool, str]:
+    """Send a trivial prompt to the provider and report whether it responded.
+
+    Returns ``(ok, message)``. ``ok`` is True on any successful 200-class
+    response with parseable JSON. The message is short — either the
+    provider's own returned summary (truncated) or the error string.
+
+    The test uses the same summarizer the app will use at scan time, so
+    any auth / model / base-URL problem the user has configured is caught
+    here, not on the first file. The fallback chain (heuristic on any
+    failure) is bypassed by setting ``fallback=None`` — the user wants to
+    know that THEIR key works, not that the heuristic does.
+    """
+    provider_key = (provider or "heuristic").strip().lower()
+    if provider_key in {"", "heuristic", "none", "off"}:
+        return (True, "Heuristic mode does not need a key.")
+    if not api_key or not api_key.strip():
+        return (False, "API key is empty. Paste your key or switch to Heuristic mode.")
+    spec = PROVIDER_SPEC_MAP.get(provider_key)
+    if spec is None:
+        return (False, f"Unknown provider: {provider!r}")
+    selected_model = (model or spec.default_model).strip()
+    selected_base_url = (base_url or spec.base_url).strip()
+    if spec.kind == "anthropic":
+        summarizer: BaseSummarizer = AnthropicSummarizer(api_key=api_key, model=selected_model)
+    elif spec.kind == "gemini":
+        summarizer = GeminiSummarizer(api_key=api_key, model=selected_model)
+    else:
+        if not selected_base_url:
+            return (False, "Base URL is required for this provider.")
+        summarizer = OpenAICompatibleSummarizer(
+            api_key=api_key, model=selected_model, base_url=selected_base_url, provider_key=provider_key
+        )
+    # Disable the heuristic fallback so a network error is surfaced,
+    # not silently converted into a heuristic result. The base class
+    # coerces ``fallback=None`` to ``HeuristicSummarizer()`` in __init__,
+    # so we replace it with a stub that always raises.
+    class _FailFallback(BaseSummarizer):
+        def get_file_metadata(self, filename: str, text_snippet: str) -> FileMetadata:
+            raise RuntimeError("provider call failed")
+        def search_rerank(self, query: str, candidates: list[dict[str, Any]]) -> str:
+            raise RuntimeError("provider call failed")
+    summarizer.fallback = _FailFallback()
+    try:
+        metadata = summarizer.get_file_metadata(
+            "golem-test.txt", "This is a short test of the API key and model."
+        )
+    except Exception as exc:
+        return (False, f"{type(exc).__name__}: {exc}")
+    preview = (metadata.summary or "").strip()
+    if len(preview) > 120:
+        preview = preview[:117] + "..."
+    return (True, preview or f"OK ({provider_key})")

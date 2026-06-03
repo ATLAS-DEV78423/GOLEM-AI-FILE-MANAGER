@@ -40,7 +40,11 @@ class InstallerTests(unittest.TestCase):
             shortcut_path.write_text(f"{target_path}\n", encoding="utf-8")
             return shortcut_path
 
-        with patch.dict(os.environ, {"LOCALAPPDATA": str(sandbox)}), patch("installer.create_shortcut", side_effect=fake_shortcut), patch(
+        env_overrides = {
+            "LOCALAPPDATA": str(sandbox),
+            "GOLEM_PAYLOAD_BYPASS_ROOT_CHECK": "1",
+        }
+        with patch.dict(os.environ, env_overrides), patch("installer.create_shortcut", side_effect=fake_shortcut), patch(
             "installer.registry_write_install"
         ), patch("installer.subprocess.Popen"):
             manifest = installer.install_app(
@@ -88,6 +92,56 @@ class InstallerTests(unittest.TestCase):
         with patch.dict(os.environ, {"LOCALAPPDATA": str(sandbox)}):
             with self.assertRaises(ValueError):
                 installer.install_app(installer.InstallOptions(install_dir=install_dir, launch_after=False), payload_dir=payload)
+
+    def test_uninstall_refuses_when_no_manifest(self) -> None:
+        """Uninstall must refuse to delete a directory that has no install-manifest.json."""
+        sandbox = Path(tempfile.mkdtemp())
+        install_dir = sandbox / "Programs" / "GOLEM"
+        install_dir.mkdir(parents=True)
+        with patch.dict(os.environ, {"LOCALAPPDATA": str(sandbox)}):
+            with self.assertRaises(FileNotFoundError):
+                installer.uninstall_app(install_dir)
+        self.assertTrue(install_dir.exists(), "install dir must not be deleted")
+
+    def test_uninstall_refuses_manifest_for_wrong_app(self) -> None:
+        """Uninstall must refuse if the manifest declares a different app_name."""
+        sandbox = Path(tempfile.mkdtemp())
+        install_dir = sandbox / "Programs" / "GOLEM"
+        install_dir.mkdir(parents=True)
+        (install_dir / "install-manifest.json").write_text(
+            json.dumps({"app_name": "EVIL_APP", "version": "1.0", "shortcuts": []}),
+            encoding="utf-8",
+        )
+        with patch.dict(os.environ, {"LOCALAPPDATA": str(sandbox)}):
+            with self.assertRaises(ValueError):
+                installer.uninstall_app(install_dir)
+        self.assertTrue(install_dir.exists(), "install dir must not be deleted")
+
+    def test_uninstall_skips_shortcuts_outside_safe_dirs(self) -> None:
+        """Uninstall must not unlink paths declared in a manifest that are outside
+        the Start Menu or Desktop directories."""
+        sandbox = Path(tempfile.mkdtemp())
+        install_dir = sandbox / "Programs" / "GOLEM"
+        install_dir.mkdir(parents=True)
+        innocent = sandbox / "important_file.txt"
+        innocent.write_text("don't delete me", encoding="utf-8")
+        (install_dir / "install-manifest.json").write_text(
+            json.dumps(
+                {
+                    "app_name": installer.APP_NAME,
+                    "version": installer.APP_VERSION,
+                    "shortcuts": [str(innocent)],
+                }
+            ),
+            encoding="utf-8",
+        )
+        with patch.dict(os.environ, {"LOCALAPPDATA": str(sandbox)}), patch(
+            "installer.registry_remove_install"
+        ):
+            result = installer.uninstall_app(install_dir)
+            self.assertEqual(result["status"], "ok")
+        self.assertFalse(install_dir.exists(), "install dir was removed")
+        self.assertTrue(innocent.exists(), "innocent file outside Start Menu/Desktop must survive")
 
 
 if __name__ == "__main__":

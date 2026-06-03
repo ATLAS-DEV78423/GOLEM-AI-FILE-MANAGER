@@ -29,7 +29,6 @@ class AppConfig:
             "vault_folder": self.vault_folder,
             "llm_provider": self.llm_provider,
             "llm_api_key": self.llm_api_key,
-            "groq_api_key": self.llm_api_key,
             "llm_model": self.llm_model,
             "llm_base_url": self.llm_base_url,
             "dry_run": "1" if self.dry_run else "0",
@@ -42,7 +41,11 @@ class AppConfig:
 
     @classmethod
     def from_settings(cls, settings: dict[str, str]) -> "AppConfig":
-        api_key = settings.get("llm_api_key", settings.get("groq_api_key", ""))
+        # Migration shim: the legacy schema wrote the same key under both
+        # ``llm_api_key`` and ``groq_api_key``. The new schema stores the key
+        # once under ``llm_api_key``. ``initialize`` migrates the DB on first
+        # run, but the in-memory dict may still contain the legacy key.
+        api_key = settings.get("llm_api_key") or settings.get("groq_api_key", "")
         return cls(
             watched_folder=settings.get("watched_folder", ""),
             vault_folder=settings.get("vault_folder", ""),
@@ -57,11 +60,3 @@ class AppConfig:
             terms_accepted=settings.get("terms_accepted", "0") == "1",
             terms_version=settings.get("terms_version", TERMS_VERSION),
         )
-
-    @property
-    def groq_api_key(self) -> str:
-        return self.llm_api_key
-
-    @groq_api_key.setter
-    def groq_api_key(self, value: str) -> None:
-        self.llm_api_key = value

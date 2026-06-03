@@ -32,7 +32,14 @@ jobs:
             $version = $version.Substring(1)
           }
           "GOLEM_VERSION=$version" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
-          "GOLEM_SKIP_SIGNING=1" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+          # Signing is opt-in: if neither a PFX path nor a certificate
+          # SHA1 is configured, the build script sets GOLEM_SKIP_SIGNING
+          # and the artifact is uploaded unsigned. This keeps CI green
+          # for forks and public PRs while leaving a real sign path for
+          # the maintainer.
+          if (-not $env:GOLEM_SIGN_PFX_PATH -and -not $env:GOLEM_SIGN_CERT_SHA1) {
+            "GOLEM_SKIP_SIGNING=1" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+          }
 
       - name: Set up Python
         uses: actions/setup-python@v5
@@ -40,7 +47,10 @@ jobs:
           python-version: "3.11"
 
       - name: Install dependencies
-        run: python -m pip install --upgrade pip && pip install -r requirements.txt
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+          pip install -r requirements-build.txt
 
       - name: Build Windows release artifacts
         shell: pwsh
@@ -53,6 +63,7 @@ jobs:
           path: |
             dist/releases/windows/GOLEM-*-windows.exe
             dist/releases/windows/GOLEM-*-windows-installer.exe
+          if-no-files-found: error
 
   build-macos:
     runs-on: macos-latest
@@ -71,8 +82,15 @@ jobs:
           fi
           {
             echo "GOLEM_VERSION=$VERSION"
-            echo "GOLEM_SKIP_SIGNING=1"
           } >> "$GITHUB_ENV"
+          # macOS code signing + notarization is opt-in. Provide
+          # MACOS_CERT_P12_BASE64 (base64 of the Developer ID .p12),
+          # MACOS_CERT_PASSWORD, and the notarization secrets to enable.
+          # Without them the build script signs the .app ad-hoc and
+          # skips notarization (suitable for internal testing only).
+          if [[ -z "$MACOS_CERT_P12_BASE64" ]]; then
+            echo "GOLEM_SKIP_SIGNING=1" >> "$GITHUB_ENV"
+          fi
 
       - name: Set up Python
         uses: actions/setup-python@v5
@@ -80,7 +98,10 @@ jobs:
           python-version: "3.11"
 
       - name: Install dependencies
-        run: python3 -m pip install --upgrade pip && pip install -r requirements.txt
+        run: |
+          python3 -m pip install --upgrade pip
+          pip install -r requirements.txt
+          pip install -r requirements-build.txt
 
       - name: Build macOS release artifacts
         run: ./release_macos.sh
@@ -90,12 +111,15 @@ jobs:
         with:
           name: macos-release
           path: dist/releases/macos/GOLEM-*-macOS.dmg
+          if-no-files-found: error
 
   publish-release:
     needs:
       - build-windows
       - build-macos
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
     steps:
       - name: Download Windows artifacts
         uses: actions/download-artifact@v4
@@ -109,11 +133,33 @@ jobs:
           name: macos-release
           path: release-artifacts/macos
 
+      - name: Generate SHA256 checksums
+        working-directory: release-artifacts
+        run: |
+          find . -type f \( -name "*.exe" -o -name "*.dmg" -o -name "*.zip" -o -name "*.tar.gz" \) -exec sha256sum {} \; > SHA256SUMS.txt
+          cat SHA256SUMS.txt
+
+      - name: Create source archive
+        working-directory: release-artifacts
+        run: |
+          VERSION=$(echo "${{ github.ref_name }}" | sed 's/^v//')
+          mkdir -p source
+          git archive --format=tar.gz --prefix="GOLEM-${VERSION}/" -o "source/GOLEM-${VERSION}-source.tar.gz" ${{ github.sha }}
+
+      - name: Generate SBOM (SPDX)
+        uses: anchore/sbom-action@v0
+        with:
+          format: spdx-json
+          artifact-name: golem.spdx.json
+
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
         with:
           files: |
-            release-artifacts/windows/GOLEM-*-windows.exe
-            release-artifacts/windows/GOLEM-*-windows-installer.exe
-            release-artifacts/macos/GOLEM-*-macOS.dmg
+            release-artifacts/**/*.exe
+            release-artifacts/**/*.dmg
+            release-artifacts/**/*.tar.gz
+            release-artifacts/**/SHA256SUMS.txt
+            release-artifacts/**/golem.spdx.json
           generate_release_notes: true
+          draft: ${{ github.event_name != 'push' }}

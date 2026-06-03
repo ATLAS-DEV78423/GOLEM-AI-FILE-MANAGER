@@ -1,8 +1,33 @@
 __pycache__/
 *.pyc
+*.pyo
 build/
 dist/
 .venv/
+.venv-*/
+venv/
 *.spec.bak
 *.log
 *.tmp
+*.egg-info/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+coverage.xml
+.graphify_cache/
+graphify-out/
+graphify_output/
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+*.code-workspace
+*.swp
+*.swo
+# Local build output
+.venv-build/
+# Local dev artifacts
+awesome-claude-code/
+obsidian_graphify_custom/

@@ -45,8 +45,10 @@ class RuntimeTests(unittest.TestCase):
 
         result = search_with_fallback(conn, "alpha zeta", _BadRerankSummarizer(), 0.8)
 
-        self.assertEqual(result[0]["status"], "not_found")
-        self.assertTrue(result[0]["results"])
+        # New contract: SearchResponse with is_not_found helper.
+        self.assertTrue(result.is_not_found)
+        self.assertTrue(result.results)
+        self.assertTrue(result.message)
 
     def test_watcher_reports_new_files(self) -> None:
         folder = Path(tempfile.mkdtemp()) / "watched"
@@ -58,8 +60,8 @@ class RuntimeTests(unittest.TestCase):
             seen.append(path)
             event.set()
 
-        watcher = PollingWatcher(folder, on_new_file, interval=0.1)
-        thread = watcher.start()
+        watcher = PollingWatcher(folder, on_new_file, interval=0.1, debounce_seconds=0.1)
+        _poll, worker = watcher.start()
         try:
             time.sleep(0.2)
             new_file = folder / "new.txt"
@@ -69,5 +71,35 @@ class RuntimeTests(unittest.TestCase):
             self.assertEqual(seen[0], new_file)
         finally:
             watcher.stop()
-            thread.join(timeout=1.0)
+
+    def test_watcher_debounces_rapid_reports(self) -> None:
+        """Touching the same file repeatedly should not enqueue many handler calls."""
+        folder = Path(tempfile.mkdtemp()) / "watched"
+        folder.mkdir()
+        seen: list[Path] = []
+        lock = threading.Lock()
+
+        def on_new_file(path: Path) -> None:
+            with lock:
+                seen.append(path)
+            # Block the worker so additional enqueues pile up.
+            time.sleep(0.3)
+
+        watcher = PollingWatcher(folder, on_new_file, interval=0.05, debounce_seconds=1.0, queue_size=64)
+        watcher.start()
+        try:
+            time.sleep(0.2)
+            new_file = folder / "rapid.txt"
+            new_file.write_text("v1", encoding="utf-8")
+            time.sleep(0.05)
+            new_file.write_text("v2", encoding="utf-8")
+            new_file.write_text("v3", encoding="utf-8")
+            time.sleep(0.6)
+        finally:
+            watcher.stop()
+        with lock:
+            # We expect at most a couple of dispatches (the first change, and
+            # maybe one more after the debounce window). Definitely not 4+.
+            self.assertLessEqual(len(seen), 3, f"debounce failed: {len(seen)} dispatches")
+            self.assertGreaterEqual(len(seen), 1)
 

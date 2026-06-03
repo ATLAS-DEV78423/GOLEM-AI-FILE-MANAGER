@@ -1,11 +1,10 @@
 from __future__ import annotations
 
-import shutil
 from datetime import datetime, timezone
 from pathlib import Path
 
 from .indexer import add_undo_log
-from .utils import ensure_unique_path
+from .utils import ensure_unique_path, safe_move
 
 
 def organize_file(source_path: Path, vault_folder: Path, category: str, dry_run: bool = False) -> Path:
@@ -14,7 +13,7 @@ def organize_file(source_path: Path, vault_folder: Path, category: str, dry_run:
     target_path = ensure_unique_path(target_root / source_path.name)
     if dry_run:
         return target_path
-    shutil.move(str(source_path), str(target_path))
+    safe_move(source_path, target_path)
     return target_path
 
 

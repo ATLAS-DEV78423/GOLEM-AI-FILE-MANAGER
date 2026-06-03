@@ -15,6 +15,7 @@ def _clean_text(value: str) -> str:
 def _frontmatter(record: FileRecord) -> str:
     tags = [tag.strip() for tag in record.tags.split(",") if tag.strip()]
     tags_repr = json.dumps(tags, ensure_ascii=False)
+    user_edited_flag = "true" if int(record.user_edited or 0) else "false"
     return "\n".join(
         [
             "---",
@@ -26,7 +27,7 @@ def _frontmatter(record: FileRecord) -> str:
             f"date_indexed: {json.dumps(_clean_text(record.date_indexed), ensure_ascii=False)}",
             f"tags: {tags_repr}",
             f"golem_category: {json.dumps(_clean_text(record.category), ensure_ascii=False)}",
-            f"user_edited: false",
+            f"user_edited: {user_edited_flag}",
             "---",
         ]
     )
@@ -52,8 +53,12 @@ def _body(record: FileRecord) -> str:
 
 
 def note_path_for(vault_folder: Path, clean_filename: str) -> Path:
+    """Return the path where an Obsidian note for ``clean_filename`` should live.
+
+    Pure path computation. The caller is responsible for creating the parent
+    directory before writing (see ``write_note``).
+    """
     golem_dir = vault_folder / "GOLEM"
-    golem_dir.mkdir(parents=True, exist_ok=True)
     return ensure_unique_path(golem_dir / f"{Path(clean_filename).stem}.md")
 
 
@@ -69,6 +74,7 @@ def read_user_edited(path: Path) -> bool:
 
 def write_note(vault_folder: Path, record: FileRecord) -> Path:
     note_path = note_path_for(vault_folder, record.clean_filename)
+    note_path.parent.mkdir(parents=True, exist_ok=True)
     content = "\n".join([_frontmatter(record), _body(record)])
     note_path.write_text(content, encoding="utf-8")
     return note_path

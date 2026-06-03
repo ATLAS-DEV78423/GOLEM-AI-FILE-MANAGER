@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import logging
 import os
 import hashlib
 import shutil
@@ -17,9 +18,6 @@ if sys.platform.startswith("win"):
     import winreg  # type: ignore
 else:
     winreg = None  # type: ignore
-
-import tkinter as tk
-from tkinter import filedialog, messagebox, ttk
 
 from golem.constants import APP_NAME, APP_VERSION
 
@@ -39,10 +37,46 @@ class InstallOptions:
     skip_registry: bool = False
 
 
+def _allowed_payload_roots() -> list[Path]:
+    """Directories that may legitimately contain a GOLEM payload.
+
+    Used to constrain ``GOLEM_PAYLOAD_DIR`` so a user (or a malicious shim)
+    cannot point the installer at ``C:\\Windows`` and have us recursively
+    copy system files. Only build outputs are acceptable.
+    """
+    candidates = [
+        Path.cwd() / "dist",
+        Path(__file__).resolve().parent / "dist",
+    ]
+    seen: set[Path] = set()
+    roots: list[Path] = []
+    for candidate in candidates:
+        try:
+            resolved = candidate.resolve()
+        except OSError:
+            continue
+        if resolved in seen:
+            continue
+        seen.add(resolved)
+        roots.append(resolved)
+    return roots
+
+
 def source_payload_dir() -> Path:
     override = os.getenv("GOLEM_PAYLOAD_DIR")
     if override:
-        return Path(override)
+        candidate = Path(override).expanduser().resolve()
+        if not candidate.exists():
+            raise FileNotFoundError(f"GOLEM_PAYLOAD_DIR does not exist: {candidate}")
+        if os.environ.get("GOLEM_PAYLOAD_BYPASS_ROOT_CHECK") != "1":
+            allowed = _allowed_payload_roots()
+            if not any(_is_within(candidate, root) for root in allowed):
+                raise ValueError(
+                    f"GOLEM_PAYLOAD_DIR must be inside a build output directory. "
+                    f"Got {candidate!s}; allowed roots: {[str(r) for r in allowed]}. "
+                    f"Set GOLEM_PAYLOAD_BYPASS_ROOT_CHECK=1 to override."
+                )
+        return candidate
     if getattr(sys, "frozen", False):
         candidate = Path(getattr(sys, "_MEIPASS", Path.cwd())) / "payload" / APP_NAME
         if candidate.exists():
@@ -241,8 +275,37 @@ def create_uninstaller_script(install_dir: Path) -> Path:
     return cmd_path
 
 
+def _assert_payload_within_allowed_roots(payload: Path) -> None:
+    """Refuse to copy from a payload that lives outside the build output tree.
+
+    ``_validate_payload_dir`` checks that the payload looks like a valid
+    GOLEM bundle (it has the right manifest, files, and hashes). It does
+    NOT check *where* the payload came from. We add that check here so a
+    crafted caller cannot pass ``C:\\Windows\\System32`` as a payload and
+    have us recursively copy it.
+
+    The check is bypassed when the installer itself is a frozen PyInstaller
+    binary (the payload then lives next to the installer in a trusted
+    location) and when the caller passes ``payload_dir`` explicitly via the
+    Python API (the caller is responsible for that path's safety; this
+    function is meant to defend against the env-var override path only).
+    """
+    if getattr(sys, "frozen", False):
+        return
+    if os.environ.get("GOLEM_PAYLOAD_BYPASS_ROOT_CHECK") == "1":
+        return
+    allowed = _allowed_payload_roots()
+    if not any(_is_within(payload, root) for root in allowed):
+        raise ValueError(
+            f"Payload must be inside a build output directory. "
+            f"Got {payload!s}; allowed roots: {[str(r) for r in allowed]}. "
+            f"Set GOLEM_PAYLOAD_BYPASS_ROOT_CHECK=1 to override (only for trusted callers)."
+        )
+
+
 def copy_payload(payload_dir: Path, install_dir: Path) -> None:
     payload = _validate_payload_dir(payload_dir)
+    _assert_payload_within_allowed_roots(payload)
     target = _validate_install_dir(install_dir)
     if target.exists():
         _safe_rmtree(target)
@@ -311,15 +374,53 @@ def install_app(options: InstallOptions, payload_dir: Path | None = None) -> dic
     return manifest
 
 
+def _is_shortcut_safe(shortcut: Path) -> bool:
+    """A shortcut is only safe to unlink if it lives in the Start Menu or Desktop.
+
+    The install manifest is written by us, but a corrupted or tampered
+    manifest could contain arbitrary paths. We refuse to unlink anything
+    outside the expected shortcut directories.
+    """
+    try:
+        resolved = shortcut.expanduser().resolve()
+    except OSError:
+        return False
+    sm = start_menu_dir()
+    dt = desktop_dir()
+    try:
+        sm_resolved = sm.resolve()
+    except OSError:
+        sm_resolved = sm
+    try:
+        dt_resolved = dt.resolve()
+    except OSError:
+        dt_resolved = dt
+    return _is_within(resolved, sm_resolved) or _is_within(resolved, dt_resolved)
+
+
 def uninstall_app(install_dir: Path) -> dict[str, str]:
     install_dir = _validate_install_dir(install_dir)
     manifest_path = install_dir / INSTALL_MANIFEST
-    manifest = json.loads(manifest_path.read_text(encoding="utf-8")) if manifest_path.exists() else {}
+    if not manifest_path.is_file():
+        raise FileNotFoundError(
+            f"No install manifest at {manifest_path}; refusing to uninstall. "
+            f"Pass the correct install directory or remove it manually."
+        )
+    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    if manifest.get("app_name") != APP_NAME:
+        raise ValueError(
+            f"Install manifest at {manifest_path} does not belong to {APP_NAME}; "
+            f"refusing to uninstall."
+        )
     for shortcut in manifest.get("shortcuts", []):
+        shortcut_path = Path(shortcut)
+        if not _is_shortcut_safe(shortcut_path):
+            logging.warning("Skipping shortcut outside Start Menu/Desktop: %s", shortcut_path)
+            continue
         try:
-            Path(shortcut).unlink(missing_ok=True)
-        except Exception:
-            pass
+            shortcut_path.unlink(missing_ok=True)
+        except Exception as exc:
+            logging.warning("Failed to remove shortcut %s: %s", shortcut_path, exc)
     registry_remove_install()
     _safe_rmtree(install_dir)
     return {"status": "ok", "message": f"{APP_NAME} removed."}
@@ -327,40 +428,49 @@ def uninstall_app(install_dir: Path) -> dict[str, str]:
 
 class InstallerUI:
     def __init__(self):
-        self.root = tk.Tk()
+        import tkinter as _tk
+        from tkinter import filedialog as _fd, messagebox as _mb, ttk as _tt
+
+        self._tk = _tk
+        self._filedialog = _fd
+        self._messagebox = _mb
+        self._ttk = _tt
+
+        self.root = _tk.Tk()
         self.root.title(f"{APP_NAME} Setup")
         self.root.geometry("560x360")
         self.root.minsize(560, 360)
-        self.install_dir_var = tk.StringVar(value=str(default_install_dir()))
-        self.start_menu_var = tk.BooleanVar(value=True)
-        self.desktop_var = tk.BooleanVar(value=True)
-        self.launch_var = tk.BooleanVar(value=True)
-        self.status_var = tk.StringVar(value="Ready to install.")
-        self.progress = ttk.Progressbar(self.root, mode="indeterminate")
+        self.install_dir_var = _tk.StringVar(value=str(default_install_dir()))
+        self.start_menu_var = _tk.BooleanVar(value=True)
+        self.desktop_var = _tk.BooleanVar(value=True)
+        self.launch_var = _tk.BooleanVar(value=True)
+        self.status_var = _tk.StringVar(value="Ready to install.")
+        self.progress = _tt.Progressbar(self.root, mode="indeterminate")
         self._build()
 
     def _build(self) -> None:
-        frame = ttk.Frame(self.root, padding=18)
+        _tt = self._ttk
+        frame = _tt.Frame(self.root, padding=18)
         frame.pack(fill="both", expand=True)
-        ttk.Label(frame, text=f"{APP_NAME} Installer", font=("Segoe UI", 18, "bold")).pack(anchor="w")
-        ttk.Label(frame, text=f"Version {APP_VERSION}").pack(anchor="w", pady=(2, 10))
-        ttk.Label(frame, text="Install location").pack(anchor="w")
-        row = ttk.Frame(frame)
+        _tt.Label(frame, text=f"{APP_NAME} Installer", font=("Segoe UI", 18, "bold")).pack(anchor="w")
+        _tt.Label(frame, text=f"Version {APP_VERSION}").pack(anchor="w", pady=(2, 10))
+        _tt.Label(frame, text="Install location").pack(anchor="w")
+        row = _tt.Frame(frame)
         row.pack(fill="x", pady=(4, 10))
-        ttk.Entry(row, textvariable=self.install_dir_var).pack(side="left", fill="x", expand=True)
-        ttk.Button(row, text="Browse", command=self._browse).pack(side="left", padx=(8, 0))
-        ttk.Checkbutton(frame, text="Create Start Menu shortcuts", variable=self.start_menu_var).pack(anchor="w")
-        ttk.Checkbutton(frame, text="Create Desktop shortcut", variable=self.desktop_var).pack(anchor="w")
-        ttk.Checkbutton(frame, text="Launch GOLEM after install", variable=self.launch_var).pack(anchor="w")
-        ttk.Label(frame, textvariable=self.status_var).pack(anchor="w", pady=(12, 4))
+        _tt.Entry(row, textvariable=self.install_dir_var).pack(side="left", fill="x", expand=True)
+        _tt.Button(row, text="Browse", command=self._browse).pack(side="left", padx=(8, 0))
+        _tt.Checkbutton(frame, text="Create Start Menu shortcuts", variable=self.start_menu_var).pack(anchor="w")
+        _tt.Checkbutton(frame, text="Create Desktop shortcut", variable=self.desktop_var).pack(anchor="w")
+        _tt.Checkbutton(frame, text="Launch GOLEM after install", variable=self.launch_var).pack(anchor="w")
+        _tt.Label(frame, textvariable=self.status_var).pack(anchor="w", pady=(12, 4))
         self.progress.pack(fill="x", pady=(0, 10))
-        buttons = ttk.Frame(frame)
+        buttons = _tt.Frame(frame)
         buttons.pack(fill="x", pady=(10, 0))
-        ttk.Button(buttons, text="Install", command=self._install).pack(side="right")
-        ttk.Button(buttons, text="Uninstall", command=self._uninstall).pack(side="right", padx=(0, 8))
+        _tt.Button(buttons, text="Install", command=self._install).pack(side="right")
+        _tt.Button(buttons, text="Uninstall", command=self._uninstall).pack(side="right", padx=(0, 8))
 
     def _browse(self) -> None:
-        selected = filedialog.askdirectory(initialdir=self.install_dir_var.get())
+        selected = self._filedialog.askdirectory(initialdir=self.install_dir_var.get())
         if selected:
             self.install_dir_var.set(selected)
 
@@ -378,9 +488,9 @@ class InstallerUI:
                 )
             )
             self.status_var.set(f"Installed to {manifest['install_dir']}")
-            messagebox.showinfo(APP_NAME, "Installation completed.")
+            self._messagebox.showinfo(APP_NAME, "Installation completed.")
         except Exception as exc:
-            messagebox.showerror(APP_NAME, str(exc))
+            self._messagebox.showerror(APP_NAME, str(exc))
             self.status_var.set("Install failed.")
         finally:
             self.progress.stop()
@@ -389,9 +499,9 @@ class InstallerUI:
         try:
             result = uninstall_app(Path(self.install_dir_var.get()))
             self.status_var.set(result["message"])
-            messagebox.showinfo(APP_NAME, result["message"])
+            self._messagebox.showinfo(APP_NAME, result["message"])
         except Exception as exc:
-            messagebox.showerror(APP_NAME, str(exc))
+            self._messagebox.showerror(APP_NAME, str(exc))
 
     def run(self) -> None:
         self.root.mainloop()
