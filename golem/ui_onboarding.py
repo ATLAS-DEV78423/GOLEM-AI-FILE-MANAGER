@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """The onboarding wizard (4 steps, smooth transitions, async validation).
 
 Layout
@@ -41,10 +40,10 @@ import inspect
 import logging
 import threading
 import tkinter as tk
+from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
 from tkinter import filedialog, messagebox, ttk
-from typing import Callable
 
 from .legal import TERMS_VERSION, terms_of_service_text
 from .summarizer import PROVIDER_SPEC_MAP, check_provider_connection, provider_choices
@@ -61,7 +60,6 @@ from .ui_components import (
 from .ui_icons import get_icon
 from .ui_theme import COLORS, SIZE, SPACING, TYPOGRAPHY
 from .ui_window import place_centered
-
 
 _LOG = logging.getLogger(__name__)
 

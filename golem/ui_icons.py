@@ -18,10 +18,8 @@ import math
 import re
 import tkinter as tk
 from dataclasses import dataclass
-from typing import Sequence
 
 from .ui_theme import ICON_SIZE
-
 
 # ---------------------------------------------------------------------------
 # Icon definitions

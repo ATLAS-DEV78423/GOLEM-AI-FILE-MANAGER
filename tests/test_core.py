@@ -1,15 +1,23 @@
 from __future__ import annotations
 
 import shutil
+import sqlite3
 import tempfile
+import unittest
 import unittest.mock
 from pathlib import Path
-import sqlite3
-import unittest
 
 from golem.extractor import extract_text
+from golem.indexer import (
+    FileRecord,
+    get_settings,
+    initialize,
+    save_settings,
+    search_files,
+    transaction,
+    upsert_file,
+)
 from golem.legal import terms_of_service_text
-from golem.indexer import FileRecord, get_settings, initialize, save_settings, search_files, transaction, upsert_file
 from golem.scanner import index_one_file
 from golem.search import SearchResponse, SearchResult
 from golem.summarizer import HeuristicSummarizer, build_summarizer, provider_choices
@@ -247,6 +255,7 @@ class CoreTests(unittest.TestCase):
     def test_build_summarizer_falls_back_to_env_var(self) -> None:
         """If no key is passed to build_summarizer, the provider's env var is used."""
         import os
+
         from golem.summarizer import (
             PROVIDER_ENV_KEYS,
             AnthropicSummarizer,
@@ -271,6 +280,7 @@ class CoreTests(unittest.TestCase):
     def test_safe_move_falls_back_to_copy_when_move_raises(self) -> None:
         """When shutil.move raises any OSError, safe_move must copy+unlink."""
         from unittest.mock import patch
+
         from golem.utils import safe_move
         src = Path(self._tmpdir()) / "src.txt"
         dst = Path(self._tmpdir()) / "dst.txt"
@@ -285,6 +295,7 @@ class CoreTests(unittest.TestCase):
         """If the source cannot be deleted after a successful copy,
         safe_move must surface a clear OSError."""
         from unittest.mock import patch
+
         from golem.utils import safe_move
         src = Path(self._tmpdir()) / "src.txt"
         dst = Path(self._tmpdir()) / "dst.txt"

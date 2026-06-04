@@ -1,18 +1,16 @@
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
 import logging
 import os
-import hashlib
 import shutil
 import subprocess
 import sys
-import tempfile
 from dataclasses import dataclass
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
-from typing import Callable
 
 if sys.platform.startswith("win"):
     import winreg  # type: ignore
@@ -20,7 +18,6 @@ else:
     winreg = None  # type: ignore
 
 from golem.constants import APP_NAME, APP_VERSION
-
 
 INSTALL_MANIFEST = "install-manifest.json"
 UNINSTALL_CMD_NAME = f"Uninstall {APP_NAME}.cmd"
@@ -362,7 +359,7 @@ def install_app(options: InstallOptions, payload_dir: Path | None = None) -> dic
         "launcher": str(launcher),
         "uninstaller": str(uninstaller),
         "shortcuts": shortcuts,
-        "installed_at": datetime.now(timezone.utc).isoformat(),
+        "installed_at": datetime.now(UTC).isoformat(),
     }
     (install_dir / INSTALL_MANIFEST).write_text(json.dumps(manifest, indent=2), encoding="utf-8")
     registry_write_install(install_dir, launcher, uninstaller)
@@ -429,7 +426,9 @@ def uninstall_app(install_dir: Path) -> dict[str, str]:
 class InstallerUI:
     def __init__(self):
         import tkinter as _tk
-        from tkinter import filedialog as _fd, messagebox as _mb, ttk as _tt
+        from tkinter import filedialog as _fd
+        from tkinter import messagebox as _mb
+        from tkinter import ttk as _tt
 
         self._tk = _tk
         self._filedialog = _fd

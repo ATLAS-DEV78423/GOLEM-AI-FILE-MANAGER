@@ -4,18 +4,24 @@ import datetime as _dt
 import hashlib
 import logging
 import os
+from collections.abc import Callable, Iterator
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Callable, Iterator
 
 from .constants import SUPPORTED_EXTENSIONS, SYSTEM_SKIP_DIRS
 from .extractor import extract_text
-from .indexer import FileRecord, find_by_hash, mark_missing, set_current_path, transaction, upsert_file
+from .indexer import (
+    FileRecord,
+    find_by_hash,
+    mark_missing,
+    set_current_path,
+    transaction,
+    upsert_file,
+)
 from .organizer import organize_file, record_move
 from .summarizer import BaseSummarizer
-from .utils import humanize_filename, is_hidden_or_system_dir, safe_move, sha256_file, text_excerpt
+from .utils import is_hidden_or_system_dir, safe_move, sha256_file, text_excerpt
 from .vault_writer import archive_orphan_note, read_user_edited, write_note
-
 
 # Files at or below this size are hashed in full. Larger files use a
 # head+tail hash to keep duplicate detection both fast and collision-resistant.
@@ -76,7 +82,7 @@ def count_files(root: Path) -> int:
 
 
 def _now_iso() -> str:
-    return _dt.datetime.now(_dt.timezone.utc).isoformat()
+    return _dt.datetime.now(_dt.UTC).isoformat()
 
 
 def _rollback(

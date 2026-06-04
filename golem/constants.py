@@ -2,7 +2,6 @@ import os
 import sys
 from pathlib import Path
 
-
 APP_NAME = "GOLEM"
 APP_VERSION = "2.0.0"
 DB_FILENAME = "golem.db"

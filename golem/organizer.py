@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 
 from .indexer import add_undo_log
@@ -18,6 +18,6 @@ def organize_file(source_path: Path, vault_folder: Path, category: str, dry_run:
 
 
 def record_move(conn, file_id: int, from_path: str, to_path: str) -> int:
-    timestamp = datetime.now(timezone.utc).isoformat()
+    timestamp = datetime.now(UTC).isoformat()
     return add_undo_log(conn, "move", file_id, from_path, to_path, timestamp)
 

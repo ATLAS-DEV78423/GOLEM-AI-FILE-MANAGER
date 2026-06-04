@@ -1,9 +1,7 @@
 from __future__ import annotations
 
-import os
 import sys
 from dataclasses import asdict, dataclass, field
-from pathlib import Path
 from typing import Any
 
 from .indexer import recent_files, search_files
@@ -51,7 +49,7 @@ class SearchResult:
     rank: float = 0.0
 
     @classmethod
-    def from_row(cls, row: dict[str, Any]) -> "SearchResult":
+    def from_row(cls, row: dict[str, Any]) -> SearchResult:
         return cls(
             id=int(row["id"]),
             original_filename=str(row.get("original_filename", "")),

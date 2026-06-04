@@ -8,24 +8,20 @@ SQLite database in a temp dir.
 
 from __future__ import annotations
 
-import os
 import tempfile
 import unittest
-from contextlib import closing, contextmanager
+from contextlib import closing
 from pathlib import Path
 from typing import Any
 from unittest.mock import patch
 
-from golem.config import AppConfig
 from golem.indexer import (
     FileRecord,
     connect,
     initialize,
-    save_settings,
     transaction,
     upsert_file,
 )
-from golem.summarizer import HeuristicSummarizer
 
 
 class _StubDesktopApp:
@@ -92,7 +88,7 @@ class _StubTray:
 
 
 class _StubPollingWatcher:
-    instances: list["_StubPollingWatcher"] = []
+    instances: list[_StubPollingWatcher] = []
 
     def __init__(self, folder: Path, on_new_file: Any) -> None:
         self.folder = folder
@@ -328,7 +324,6 @@ class StatusBarTests(unittest.TestCase):
         self.assertIn("permission denied", app.ui.status_messages[-1])
 
     def test_progress_after_error_window_replaces_status(self) -> None:
-        import golem.app as app_mod
         import time as time_mod
 
         app = self._make_app()

@@ -10,17 +10,14 @@ Exercises the complete user flow:
 """
 from __future__ import annotations
 
-import os
-import sqlite3
 import tempfile
 import unittest
 from contextlib import closing
 from pathlib import Path
-from unittest.mock import patch, MagicMock
+from unittest.mock import MagicMock, patch
 
 from golem.config import AppConfig
 from golem.indexer import (
-    FileRecord,
     backup_database,
     check_integrity,
     checkpoint_wal,
@@ -31,14 +28,10 @@ from golem.indexer import (
     restore_from_backup,
     save_settings,
     search_files,
-    transaction,
-    upsert_file,
 )
-from golem.scanner import scan_folder, index_one_file
-from golem.search import search_with_fallback
+from golem.scanner import scan_folder
 from golem.summarizer import HeuristicSummarizer
 from golem.undo import undo_last
-from golem.utils import safe_move
 
 
 class FullPipelineTests(unittest.TestCase):

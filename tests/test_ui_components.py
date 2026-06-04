@@ -9,7 +9,12 @@ from __future__ import annotations
 import unittest
 from unittest.mock import MagicMock, patch
 
-from golem.ui_components import _RowSpec, CategoryBadge, EmptyState, FooterHints, HoverList, StatusBar
+from golem.ui_components import (
+    EmptyState,
+    HoverList,
+    StatusBar,
+    _RowSpec,
+)
 
 
 class RowSpecTests(unittest.TestCase):

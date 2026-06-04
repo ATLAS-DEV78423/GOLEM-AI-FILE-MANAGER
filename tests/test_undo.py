@@ -22,7 +22,7 @@ from golem.indexer import (
     upsert_file,
 )
 from golem.undo import undo_last
-from golem.vault_writer import note_path_for, write_note
+from golem.vault_writer import note_path_for
 
 
 def _seed(conn, source: Path, target: Path) -> int:

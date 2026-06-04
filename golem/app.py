@@ -8,16 +8,14 @@ import subprocess
 import sys
 import threading
 import time
-from contextlib import contextmanager, closing
+from contextlib import closing, contextmanager
 from dataclasses import dataclass
+from logging.handlers import RotatingFileHandler
 from pathlib import Path
 from queue import Queue
 
-from logging.handlers import RotatingFileHandler
-
 from .config import AppConfig
 from .constants import APP_NAME, APP_VERSION, default_data_dir
-from .legal import TERMS_VERSION
 from .indexer import (
     backup_database,
     check_integrity,
@@ -31,14 +29,14 @@ from .indexer import (
     save_settings,
     transaction,
 )
-from .search import search_with_fallback
+from .legal import TERMS_VERSION
 from .scanner import scan_folder
+from .search import search_with_fallback
 from .summarizer import build_summarizer
+from .tray import TrayCallbacks, TrayController
 from .ui import DesktopApp
 from .undo import undo_last
-from .tray import TrayCallbacks, TrayController
 from .watcher import PollingWatcher
-
 
 _LOG = logging.getLogger(__name__)
 _RELEASES_URL = "https://github.com/ATLAS-DEV78423/GOLEM-AI-FILE-MANAGER/releases"
@@ -687,7 +685,7 @@ class GolemApplication:
                 if not ok:
                     logging.error("Database integrity check FAILED: %s", msg)
                     self.error_queue.put(
-                        f"Database integrity issue detected. Attempting backup restore..."
+                        "Database integrity issue detected. Attempting backup restore..."
                     )
                     # Try to restore from backup
                     restored = restore_from_backup(self.data_dir)

@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import argparse
 import sys
+
 from golem.app import run
 
 __all__ = ["main"]

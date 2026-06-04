@@ -13,7 +13,7 @@ import time
 import unittest
 from pathlib import Path
 
-from golem.indexer import initialize, transaction
+from golem.indexer import initialize
 from golem.scanner import _content_hash, count_files, iter_files, reconcile_missing, scan_folder
 from golem.summarizer import HeuristicSummarizer
 

@@ -20,8 +20,6 @@ root + the orchestrator), run this on a Windows VM:
 from __future__ import annotations
 
 import importlib
-from typing import Any
-
 
 # ---------------------------------------------------------------------------
 # Imports
@@ -268,8 +266,9 @@ def test_search_to_row_primary() -> None:
     # self), so we replicate the logic here and assert via the
     # SearchPopup class attributes. This is a brittle test; if the
     # implementation changes, update the test.
-    from golem.ui_search import SearchPopup
     import inspect
+
+    from golem.ui_search import SearchPopup
     src = inspect.getsource(SearchPopup._to_row)
     # Must reference the documented keys
     for key in ("clean_filename", "original_filename", "summary", "category", "confidence", "current_path", "original_path"):
@@ -354,14 +353,14 @@ def test_center_rect_in_rect() -> None:
 
 
 def test_clamp_rect_inside_monitor() -> None:
-    from golem.ui_window import Rect, Monitor, clamp_rect
+    from golem.ui_window import Monitor, Rect, clamp_rect
     monitors = [Monitor(0, 0, 1000, 800, is_primary=True)]
     inside = Rect(50, 50, 100, 100)
     assert clamp_rect(inside, monitors) == inside
 
 
 def test_clamp_rect_off_screen_snaps_back() -> None:
-    from golem.ui_window import Rect, Monitor, clamp_rect
+    from golem.ui_window import Monitor, Rect, clamp_rect
     monitors = [Monitor(0, 0, 1000, 800, is_primary=True)]
     far_away = Rect(2000, 2000, 400, 300)
     clamped = clamp_rect(far_away, monitors)

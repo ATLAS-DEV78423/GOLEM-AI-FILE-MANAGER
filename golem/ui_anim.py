@@ -20,12 +20,19 @@ from __future__ import annotations
 
 import logging
 import tkinter as tk
+from collections.abc import Callable, Iterator
 from contextlib import contextmanager
-from dataclasses import dataclass
-from typing import Any, Callable, Iterator, cast
+from typing import Any, cast
 
-from .ui_theme import COLORS, MOTION, ease_in_cubic, ease_in_out_cubic, ease_out_back, ease_out_cubic, lerp, lerp_color
-
+from .ui_theme import (
+    MOTION,
+    ease_in_cubic,
+    ease_in_out_cubic,
+    ease_out_back,
+    ease_out_cubic,
+    lerp,
+    lerp_color,
+)
 
 _LOG = logging.getLogger(__name__)
 
@@ -64,7 +71,7 @@ class _Animation:
             except Exception:
                 _LOG.exception("animation cancel callback failed")
 
-    def __enter__(self) -> "_Animation":
+    def __enter__(self) -> _Animation:
         return self
 
     def __exit__(self, *exc: object) -> None:
@@ -467,7 +474,7 @@ def pulse_icon(
     on_frame: Callable[[Any], None],
     period_ms: int = 1400,
     step_ms: int = 80,
-) -> "_TimerAnimation | _Animation | _NoopAnimation":
+) -> _TimerAnimation | _Animation | _NoopAnimation:
     """Smoothly pulse the fill color of ``base`` and emit frames to ``on_frame``.
 
     The caller owns ``base`` — we do not mutate it. Each tick allocates a
@@ -590,7 +597,7 @@ class _TimerAnimation:
             except Exception:
                 _LOG.exception("_TimerAnimation cancel callback failed")
 
-    def __enter__(self) -> "_TimerAnimation":
+    def __enter__(self) -> _TimerAnimation:
         return self
 
     def __exit__(self, *exc: object) -> None:
@@ -608,7 +615,7 @@ class _NoopAnimation:
     def cancel(self) -> None:
         return
 
-    def __enter__(self) -> "_NoopAnimation":
+    def __enter__(self) -> _NoopAnimation:
         return self
 
     def __exit__(self, *exc: object) -> None:
@@ -769,8 +776,9 @@ def reduced_motion() -> Iterator[None]:
     and by accessibility-aware callers."""
     global MOTION
     original = MOTION.reduced_motion
-    from .ui_theme import Motion
     import golem.ui_theme as _t
+
+    from .ui_theme import Motion
     _t.MOTION = Motion(reduced_motion=True)
     try:
         yield

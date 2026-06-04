@@ -12,7 +12,7 @@ import sys
 from contextlib import contextmanager
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Iterable
+from typing import Any
 
 from .constants import DB_FILENAME
 
@@ -127,7 +127,6 @@ def _get_fernet_key() -> bytes:
 
 def _protect_dpapi(value: str) -> str:
     """Encrypt value with Windows DPAPI."""
-    import ctypes.wintypes as wintypes
 
     crypt32 = ctypes.windll.crypt32
     kernel32 = ctypes.windll.kernel32
@@ -144,7 +143,6 @@ def _protect_dpapi(value: str) -> str:
 
 def _unprotect_dpapi(value: str) -> str:
     """Decrypt value with Windows DPAPI."""
-    import ctypes.wintypes as wintypes
 
     payload = value[len(_SECRET_PREFIX):]
     payload_bytes = base64.b64decode(payload.encode("ascii"))

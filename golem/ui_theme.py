@@ -34,7 +34,6 @@ from tkinter import font as tkfont
 from tkinter import ttk
 from typing import Any, Literal
 
-
 # ---------------------------------------------------------------------------
 # Color palette
 # ---------------------------------------------------------------------------
@@ -667,11 +666,7 @@ def lerp_color(c1: str, c2: str, t: float) -> str:
     """Linear interpolation between two ``#rrggbb`` colors. t in [0, 1]."""
     a = _parse_hex(c1)
     b = _parse_hex(c2)
-    return "#{:02X}{:02X}{:02X}".format(
-        int(lerp(a[0], b[0], t)),
-        int(lerp(a[1], b[1], t)),
-        int(lerp(a[2], b[2], t)),
-    )
+    return f"#{int(lerp(a[0], b[0], t)):02X}{int(lerp(a[1], b[1], t)):02X}{int(lerp(a[2], b[2], t)):02X}"
 
 
 def _parse_hex(c: str) -> tuple[int, int, int]:

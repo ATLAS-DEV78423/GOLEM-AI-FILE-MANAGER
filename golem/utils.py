@@ -1,11 +1,10 @@
 from __future__ import annotations
 
 import hashlib
-import os
 import re
 import shutil
+from collections.abc import Iterable
 from pathlib import Path
-from typing import Iterable
 
 
 def sha256_file(path: Path, max_bytes: int | None = None) -> str:

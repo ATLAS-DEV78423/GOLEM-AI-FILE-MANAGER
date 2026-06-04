@@ -26,9 +26,10 @@ from __future__ import annotations
 
 import logging
 import tkinter as tk
+from collections.abc import Callable, Sequence
 from dataclasses import dataclass, field
 from tkinter import filedialog, ttk
-from typing import Any, Callable, Iterable, Sequence, Literal, cast
+from typing import Any, Literal, cast
 
 from .ui_anim import (
     _Animation,
@@ -41,13 +42,10 @@ from .ui_icons import get_icon
 from .ui_theme import (
     COLORS,
     ICON_SIZE,
-    RADII,
-    SHADOWS,
     SIZE,
     SPACING,
     TYPOGRAPHY,
 )
-
 
 _LOG = logging.getLogger(__name__)
 
@@ -123,7 +121,7 @@ class PathField:
         # Focus ring animation for accessibility
         try:
             def _pf_focus_in(_e: tk.Event) -> None:
-                setattr(self._entry, "_golem_focus_anim", color_transition(self._entry, attribute="bordercolor", from_color=COLORS.border.DEFAULT, to_color=COLORS.accent.ring, duration_ms=160))
+                self._entry._golem_focus_anim = color_transition(self._entry, attribute="bordercolor", from_color=COLORS.border.DEFAULT, to_color=COLORS.accent.ring, duration_ms=160)  # type: ignore[attr-defined]
 
             def _pf_focus_out(_e: tk.Event) -> None:
                 a = getattr(self._entry, "_golem_focus_anim", None)
@@ -192,7 +190,7 @@ class SecretField:
 
         try:
             def _sf_focus_in(_e: tk.Event) -> None:
-                setattr(self._entry, "_golem_focus_anim", color_transition(self._entry, attribute="bordercolor", from_color=COLORS.border.DEFAULT, to_color=COLORS.accent.ring, duration_ms=160))
+                self._entry._golem_focus_anim = color_transition(self._entry, attribute="bordercolor", from_color=COLORS.border.DEFAULT, to_color=COLORS.accent.ring, duration_ms=160)  # type: ignore[attr-defined]
 
             def _sf_focus_out(_e: tk.Event) -> None:
                 a = getattr(self._entry, "_golem_focus_anim", None)
@@ -317,23 +315,23 @@ def PrimaryButton(
 
     def _on_enter(_e: tk.Event) -> None:
         _cancel_anim(btn)
-        setattr(btn, "_golem_anim", color_transition(btn, attribute="background", from_color=COLORS.accent.DEFAULT, to_color=COLORS.accent.hover, duration_ms=120))
+        btn._golem_anim = color_transition(btn, attribute="background", from_color=COLORS.accent.DEFAULT, to_color=COLORS.accent.hover, duration_ms=120)  # type: ignore[attr-defined]
 
     def _on_leave(_e: tk.Event) -> None:
         _cancel_anim(btn)
-        setattr(btn, "_golem_anim", color_transition(btn, attribute="background", from_color=COLORS.accent.hover, to_color=COLORS.accent.DEFAULT, duration_ms=120))
+        btn._golem_anim = color_transition(btn, attribute="background", from_color=COLORS.accent.hover, to_color=COLORS.accent.DEFAULT, duration_ms=120)  # type: ignore[attr-defined]
 
     def _on_press(_e: tk.Event) -> None:
         _cancel_anim(btn)
-        setattr(btn, "_golem_anim", color_transition(btn, attribute="background", from_color=COLORS.accent.hover, to_color=COLORS.accent.pressed, duration_ms=60))
+        btn._golem_anim = color_transition(btn, attribute="background", from_color=COLORS.accent.hover, to_color=COLORS.accent.pressed, duration_ms=60)  # type: ignore[attr-defined]
 
     def _on_release(_e: tk.Event) -> None:
         _cancel_anim(btn)
-        setattr(btn, "_golem_anim", color_transition(btn, attribute="background", from_color=COLORS.accent.pressed, to_color=COLORS.accent.hover, duration_ms=120))
+        btn._golem_anim = color_transition(btn, attribute="background", from_color=COLORS.accent.pressed, to_color=COLORS.accent.hover, duration_ms=120)  # type: ignore[attr-defined]
 
     def _on_focus_in(_e: tk.Event) -> None:
         _cancel_anim(btn)
-        setattr(btn, "_golem_focus_anim", color_transition(btn, attribute="bordercolor", from_color=COLORS.accent.DEFAULT, to_color=COLORS.accent.ring, duration_ms=160))
+        btn._golem_focus_anim = color_transition(btn, attribute="bordercolor", from_color=COLORS.accent.DEFAULT, to_color=COLORS.accent.ring, duration_ms=160)  # type: ignore[attr-defined]
 
     def _on_focus_out(_e: tk.Event) -> None:
         a = getattr(btn, "_golem_focus_anim", None)
@@ -381,15 +379,15 @@ def SecondaryButton(
 
     def _on_enter(_e: tk.Event) -> None:
         _cancel_anim(btn)
-        setattr(btn, "_golem_anim", color_transition(btn, attribute="background", from_color=COLORS.bg.panel, to_color=COLORS.bg.hover, duration_ms=120))
+        btn._golem_anim = color_transition(btn, attribute="background", from_color=COLORS.bg.panel, to_color=COLORS.bg.hover, duration_ms=120)  # type: ignore[attr-defined]
 
     def _on_leave(_e: tk.Event) -> None:
         _cancel_anim(btn)
-        setattr(btn, "_golem_anim", color_transition(btn, attribute="background", from_color=COLORS.bg.hover, to_color=COLORS.bg.panel, duration_ms=120))
+        btn._golem_anim = color_transition(btn, attribute="background", from_color=COLORS.bg.hover, to_color=COLORS.bg.panel, duration_ms=120)  # type: ignore[attr-defined]
 
     def _on_focus_in(_e: tk.Event) -> None:
         _cancel_anim(btn)
-        setattr(btn, "_golem_focus_anim", color_transition(btn, attribute="bordercolor", from_color=COLORS.border.subtle, to_color=COLORS.accent.ring, duration_ms=160))
+        btn._golem_focus_anim = color_transition(btn, attribute="bordercolor", from_color=COLORS.border.subtle, to_color=COLORS.accent.ring, duration_ms=160)  # type: ignore[attr-defined]
 
     def _on_focus_out(_e: tk.Event) -> None:
         a = getattr(btn, "_golem_focus_anim", None)
@@ -600,7 +598,7 @@ class EmptyState:
 
                 anim = pulse(head_lbl, attribute="foreground", low=COLORS.fg.tertiary, high=COLORS.accent.DEFAULT, period_ms=900)
                 # store to allow garbage collection / cancellation if needed
-                setattr(self._frame, "_golem_anim", anim)
+                self._frame._golem_anim = anim  # type: ignore[attr-defined]
             except Exception:
                 pass
         if self.action_label and self.on_action is not None:
@@ -813,7 +811,7 @@ class HoverList:
         # Cancel any previous shimmer
         if hasattr(self._canvas, "_golem_shimmer"):
             try:
-                getattr(self._canvas, "_golem_shimmer").cancel()
+                self._canvas._golem_shimmer.cancel()
             except Exception:
                 pass
         for i in range(num_rows):
@@ -836,7 +834,7 @@ class HoverList:
                 highlight_color=COLORS.bg.elevated,
                 period_ms=1600,
             )
-            setattr(self._canvas, "_golem_shimmer", anim)
+            self._canvas._golem_shimmer = anim  # type: ignore[attr-defined]
         except Exception:
             pass
 
@@ -871,10 +869,10 @@ class HoverList:
         # Also cancel any in-flight shimmer
         if hasattr(self._canvas, "_golem_shimmer"):
             try:
-                getattr(self._canvas, "_golem_shimmer").cancel()
+                self._canvas._golem_shimmer.cancel()
             except Exception:
                 pass
-            setattr(self._canvas, "_golem_shimmer", None)
+            self._canvas._golem_shimmer = None
         if self._empty_widgets is not None:
             try:
                 empty, win = self._empty_widgets

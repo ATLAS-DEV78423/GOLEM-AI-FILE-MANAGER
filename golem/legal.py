@@ -4,7 +4,6 @@ from pathlib import Path
 
 from .constants import resource_path
 
-
 TERMS_VERSION = "1.0"
 TERMS_PATH = resource_path("assets", "legal", "terms_of_service.md")
 

@@ -90,10 +90,9 @@ class MainCliSmokeTests(unittest.TestCase):
         # short-circuit with "Database does not exist". Use a different
         # approach: import + initialize the DB in-process via the same
         # path the entry point uses, then run --export-db.
-        from golem.indexer import initialize, transaction
         from golem.config import AppConfig
         from golem.constants import DB_FILENAME
-        from golem.indexer import save_settings
+        from golem.indexer import initialize, save_settings, transaction
 
         db_path = self.tmp / DB_FILENAME
         conn = initialize(db_path)

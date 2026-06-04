@@ -5,8 +5,8 @@ import queue
 import threading
 import time
 from collections import defaultdict
+from collections.abc import Callable
 from pathlib import Path
-from typing import Callable
 
 from .constants import SYSTEM_SKIP_DIRS
 from .utils import is_hidden_or_system_dir

@@ -33,12 +33,12 @@ import logging
 import queue
 import threading
 import tkinter as tk
+from collections.abc import Callable
 from dataclasses import dataclass
-from typing import Any, Callable
+from typing import Any
 
 from .ui_anim import fade_in, fade_out_then, slide_in
 from .ui_components import (
-    EmptyState,
     FooterHints,
     HoverList,
     _RowSpec,
@@ -46,7 +46,6 @@ from .ui_components import (
 from .ui_icons import get_icon
 from .ui_theme import COLORS, ICON_SIZE, SIZE, SPACING, TYPOGRAPHY
 from .ui_window import place_at_cursor, strip_window_chrome
-
 
 _LOG = logging.getLogger(__name__)
 
@@ -91,7 +90,7 @@ class SearchPopup:
         self._search_after_id: str | None = None
         self._search_generation = 0
         self._latest_rendered_generation = 0
-        self._results_queue: "queue.Queue[tuple[int, dict[str, Any]]]" = queue.Queue()
+        self._results_queue: queue.Queue[tuple[int, dict[str, Any]]] = queue.Queue()
         self._pump_id: str | None = None
 
     # ------------------------------------------------------------------

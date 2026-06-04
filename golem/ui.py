@@ -18,16 +18,15 @@ from __future__ import annotations
 
 import logging
 import queue
-import threading
 import tkinter as tk
-from typing import Any, Callable
+from collections.abc import Callable
+from typing import Any
 
 from .ui_components import StatusBar
 from .ui_onboarding import OnboardingResult, OnboardingWizard
 from .ui_search import SearchPopup, SearchPopupConfig
-from .ui_theme import COLORS, SIZE, SPACING, apply_theme
+from .ui_theme import apply_theme
 from .ui_window import apply_dpi_scaling, detect_reduced_motion
-
 
 _LOG = logging.getLogger(__name__)
 
@@ -106,8 +105,9 @@ class DesktopApp:
             pass
         # Try to detect reduced-motion preference
         try:
-            from .ui_theme import Motion
             import golem.ui_theme as _t
+
+            from .ui_theme import Motion
             _t.MOTION = Motion(reduced_motion=detect_reduced_motion())
         except Exception:
             pass
@@ -121,7 +121,7 @@ class DesktopApp:
         )
         self.onboarding = OnboardingWizard(self.root, on_save_config)
         self._search_handler = on_search
-        self._search_results: "queue.Queue[tuple[int, dict[str, Any]]]" = queue.Queue()
+        self._search_results: queue.Queue[tuple[int, dict[str, Any]]] = queue.Queue()
         self._search_generation = 0
         self._latest_rendered_generation = 0
         # Persistent status bar (drawn inside the popup's footer area)

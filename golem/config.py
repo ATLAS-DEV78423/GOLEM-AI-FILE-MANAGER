@@ -1,8 +1,6 @@
 from __future__ import annotations
 
-from dataclasses import dataclass, asdict
-from pathlib import Path
-from typing import Any
+from dataclasses import dataclass
 
 from .constants import DEFAULT_CATEGORY
 from .legal import TERMS_VERSION
@@ -44,7 +42,7 @@ class AppConfig:
         }
 
     @classmethod
-    def from_settings(cls, settings: dict[str, str]) -> "AppConfig":
+    def from_settings(cls, settings: dict[str, str]) -> AppConfig:
         # Migration shim: the legacy schema wrote the same key under both
         # ``llm_api_key`` and ``groq_api_key``. The new schema stores the key
         # once under ``llm_api_key``. ``initialize`` migrates the DB on first

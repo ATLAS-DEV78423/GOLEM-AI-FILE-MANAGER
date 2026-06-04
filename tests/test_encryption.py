@@ -141,14 +141,10 @@ class EncryptionTests(unittest.TestCase):
     def test_setting_roundtrip_via_db(self) -> None:
         """Encoding a secret, writing it to the DB, and reading it back
         must recover the original value."""
-        import sqlite3
         from golem.indexer import (
             _encode_setting_value,
-            _decode_setting_value,
-            connect,
             get_settings,
             initialize,
-            save_settings,
         )
 
         db = Path(tempfile.mkdtemp()) / "test.db"
@@ -183,9 +179,7 @@ class EncryptionTests(unittest.TestCase):
 
     def test_save_settings_encrypts_secrets(self) -> None:
         """save_settings must encrypt SECRET_SETTINGS before writing."""
-        import sqlite3
         from golem.indexer import (
-            connect,
             get_settings,
             initialize,
             save_settings,

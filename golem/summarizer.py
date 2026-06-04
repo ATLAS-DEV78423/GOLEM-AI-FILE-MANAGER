@@ -4,12 +4,12 @@ import json
 import logging
 import os
 import re
-import time
 import threading
+import time
 from dataclasses import dataclass
 from typing import Any
-from urllib.parse import quote
 from urllib import error, request
+from urllib.parse import quote
 
 from .constants import DEFAULT_CATEGORY
 from .utils import humanize_filename, normalize_tags, text_excerpt, tokenize
@@ -34,7 +34,7 @@ class FileMetadata:
 
 
 class BaseSummarizer:
-    fallback: "BaseSummarizer | None" = None
+    fallback: BaseSummarizer | None = None
 
     def get_file_metadata(self, filename: str, text_snippet: str) -> FileMetadata:
         raise NotImplementedError

@@ -15,12 +15,10 @@ laptop display).
 from __future__ import annotations
 
 import logging
-import os
 import sys
 import tkinter as tk
+from collections.abc import Callable, Iterable, Sequence
 from dataclasses import dataclass
-from typing import Callable, Iterable, Sequence
-
 
 _LOG = logging.getLogger(__name__)
 
@@ -224,7 +222,7 @@ class Rect:
     def bottom(self) -> int:
         return self.y + self.height
 
-    def intersects(self, other: "Rect") -> bool:
+    def intersects(self, other: Rect) -> bool:
         return (
             self.x < other.right and self.right > other.x
             and self.y < other.bottom and self.bottom > other.y

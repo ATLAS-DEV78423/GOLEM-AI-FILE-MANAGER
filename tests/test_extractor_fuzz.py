@@ -7,7 +7,6 @@ the whole scan down with it.
 
 from __future__ import annotations
 
-import os
 import random
 import tempfile
 import unittest
