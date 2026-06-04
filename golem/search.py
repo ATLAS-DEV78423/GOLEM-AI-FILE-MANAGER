@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import os
 import sys
-from dataclasses import dataclass, field
+from dataclasses import asdict, dataclass, field
 from pathlib import Path
 from typing import Any
 
@@ -95,7 +95,7 @@ class SearchResponse:
         """
         return {
             "status": self.status,
-            "results": [r.__dict__ for r in self.results],
+            "results": [asdict(r) for r in self.results],
             "message": self.message,
         }
 

@@ -117,6 +117,7 @@ class DesktopApp:
             on_search=on_search,
             on_open=on_open,
             on_reveal=on_reveal,
+            on_settings=self.show_onboarding,
         )
         self.onboarding = OnboardingWizard(self.root, on_save_config)
         self._search_handler = on_search

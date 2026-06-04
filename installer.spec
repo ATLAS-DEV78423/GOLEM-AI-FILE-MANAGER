@@ -17,10 +17,9 @@ a = Analysis(
     hiddenimports=[
         # tkinter is used by the GUI installer; required on every platform.
         "tkinter",
-        # winreg is a stdlib Windows module. We list it conditionally
-        # below in case this spec is ever built on a non-Windows host
-        # (for shape verification, not for shipping). The import in
-        # installer.py is itself guarded by ``if sys.platform == "win32"``.
+        "tkinter.filedialog",
+        "tkinter.messagebox",
+        "tkinter.ttk",
     ],
     hookspath=[],
     hooksconfig={},

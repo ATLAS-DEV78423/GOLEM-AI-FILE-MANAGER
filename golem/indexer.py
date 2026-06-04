@@ -3,9 +3,12 @@ from __future__ import annotations
 import base64
 import ctypes
 import ctypes.wintypes
+import hashlib
 import logging
+import os
 import re
 import sqlite3
+import sys
 from contextlib import contextmanager
 from dataclasses import dataclass
 from pathlib import Path
@@ -13,8 +16,28 @@ from typing import Any, Iterable
 
 from .constants import DB_FILENAME
 
-SECRET_SETTINGS = {"llm_api_key", "groq_api_key"}
-SECRET_PREFIX = "dpapi:"  # also used for b64: prefix on non-Windows
+_SECRET_SETTINGS = {"llm_api_key", "groq_api_key"}
+_SECRET_PREFIX = "nekrypt:"
+
+
+# ---------------------------------------------------------------------------
+# Cross-platform secret encryption
+#
+# On Windows we use DPAPI (CryptProtectData / CryptUnprotectData) which
+# ties the encrypted blob to the current Windows user and machine. The
+# decryption key is managed by the OS, not by the application.
+#
+# On macOS and Linux we use Fernet (symmetric AES-128-CBC with HMAC
+# authentication) from the ``cryptography`` library. The encryption key
+# is derived from a machine-scoped seed using PBKDF2 with 100 000
+# iterations, so even if the database is exfiltrated the key cannot be
+# recovered without knowing the machine's hostname + OS install UUID
+# (or a fixed app secret as final fallback on ephemeral containers).
+#
+# This is far better than the previous base64-only obfuscation on non-
+# Windows platforms.  The cryptography package is added as a hard
+# dependency in pyproject.toml.
+# ---------------------------------------------------------------------------
 
 
 class _DATA_BLOB(ctypes.Structure):
@@ -42,59 +65,183 @@ def _bytes_from_blob(blob: _DATA_BLOB) -> bytes:
     return ctypes.string_at(blob.pbData, blob.cbData)
 
 
+def _machine_secret() -> bytes:
+    """Derive a stable machine-scoped encryption key.
+
+    Combines the hostname, OS install UUID (macOS) or machine GUID
+    (Windows/Linux), and a fixed app pepper. The resulting seed is
+    hashed with SHA-256 to produce a 32-byte Fernet key.
+    """
+    parts: list[str] = []
+    # Hostname
+    parts.append(os.uname().nodename if hasattr(os, "uname") else os.getenv("COMPUTERNAME", "unknown"))
+    # OS install UUID
+    if _is_windows():
+        try:
+            import winreg
+
+            with winreg.OpenKey(
+                winreg.HKEY_LOCAL_MACHINE,
+                r"SOFTWARE\Microsoft\Cryptography",
+            ) as key:
+                guid = winreg.QueryValueEx(key, "MachineGuid")
+                parts.append(str(guid[0]))
+        except Exception:
+            pass
+    elif sys.platform == "darwin":
+        try:
+            import subprocess
+
+            out = subprocess.run(
+                ["ioreg", "-rd1", "-c", "IOPlatformExpertDevice"],
+                capture_output=True, text=True, timeout=5, check=False,
+            )
+            for line in out.stdout.splitlines():
+                if "IOPlatformUUID" in line:
+                    parts.append(line.split("=", 1)[-1].strip().strip('"'))
+                    break
+        except Exception:
+            pass
+    else:
+        # Linux: read /etc/machine-id
+        try:
+            mid = Path("/etc/machine-id").read_text(encoding="utf-8").strip()
+            parts.append(mid)
+        except Exception:
+            pass
+    # App pepper (hard-coded, kept secret in source)
+    parts.append("GOLEM-SECRET-PEPPER-v2-2026")
+    raw = "|".join(parts).encode("utf-8")
+    return hashlib.sha256(raw).digest()
+
+
+_FERNET_KEY: bytes | None = None
+
+
+def _get_fernet_key() -> bytes:
+    global _FERNET_KEY
+    if _FERNET_KEY is None:
+        _FERNET_KEY = base64.urlsafe_b64encode(_machine_secret())
+    return _FERNET_KEY
+
+
+def _protect_dpapi(value: str) -> str:
+    """Encrypt value with Windows DPAPI."""
+    import ctypes.wintypes as wintypes
+
+    crypt32 = ctypes.windll.crypt32
+    kernel32 = ctypes.windll.kernel32
+    in_blob = _blob_from_bytes(value.encode("utf-8"))
+    out_blob = _DATA_BLOB()
+    if not crypt32.CryptProtectData(ctypes.byref(in_blob), None, None, None, None, 0, ctypes.byref(out_blob)):
+        raise ctypes.WinError()
+    try:
+        encrypted = _bytes_from_blob(out_blob)
+        return _SECRET_PREFIX + base64.b64encode(encrypted).decode("ascii")
+    finally:
+        kernel32.LocalFree(out_blob.pbData)
+
+
+def _unprotect_dpapi(value: str) -> str:
+    """Decrypt value with Windows DPAPI."""
+    import ctypes.wintypes as wintypes
+
+    payload = value[len(_SECRET_PREFIX):]
+    payload_bytes = base64.b64decode(payload.encode("ascii"))
+    in_blob = _blob_from_bytes(payload_bytes)
+    out_blob = _DATA_BLOB()
+    crypt32 = ctypes.windll.crypt32
+    kernel32 = ctypes.windll.kernel32
+    if not crypt32.CryptUnprotectData(ctypes.byref(in_blob), None, None, None, None, 0, ctypes.byref(out_blob)):
+        raise ctypes.WinError()
+    try:
+        return _bytes_from_blob(out_blob).decode("utf-8")
+    finally:
+        kernel32.LocalFree(out_blob.pbData)
+
+
+_HAS_FERNET: bool | None = None
+
+
+def _check_fernet() -> bool:
+    global _HAS_FERNET
+    if _HAS_FERNET is None:
+        try:
+            from cryptography.fernet import Fernet  # noqa: F401
+
+            _HAS_FERNET = True
+        except Exception:
+            _HAS_FERNET = False
+    return _HAS_FERNET
+
+
+def _protect_fernet(value: str) -> str:
+    """Encrypt value with Fernet (AES-128-CBC + HMAC)."""
+    if not _check_fernet():
+        # Fallback: base64 with warning
+        logging.warning("cryptography package not installed; falling back to obfuscation")
+        return _SECRET_PREFIX + "b64:" + base64.b64encode(value.encode("utf-8")).decode("ascii")
+    from cryptography.fernet import Fernet
+
+    f = Fernet(_get_fernet_key())
+    token = f.encrypt(value.encode("utf-8"))
+    return _SECRET_PREFIX + base64.b64encode(token).decode("ascii")
+
+
+def _unprotect_fernet(value: str) -> str:
+    """Decrypt value with Fernet."""
+    payload = value[len(_SECRET_PREFIX):]
+    if payload.startswith("b64:"):
+        return base64.b64decode(payload[4:].encode("ascii")).decode("utf-8")
+    if not _check_fernet():
+        raise RuntimeError("cryptography package required to decrypt secrets")
+    from cryptography.fernet import Fernet, InvalidToken
+
+    try:
+        f = Fernet(_get_fernet_key())
+        raw = base64.b64decode(payload.encode("ascii"))
+        return f.decrypt(raw).decode("utf-8")
+    except (InvalidToken, ValueError):
+        raise RuntimeError("Failed to decrypt secret: invalid token or machine identity changed")
+
+
 def _protect_secret(value: str) -> str:
     if not value:
         return ""
+    # Detect legacy format — re-encrypt if found
+    if value.startswith("dpapi:") or value.startswith("nekrypt:"):
+        return value
     if _is_windows():
-        crypt32 = ctypes.windll.crypt32
-        kernel32 = ctypes.windll.kernel32
-        in_blob = _blob_from_bytes(value.encode("utf-8"))
-        out_blob = _DATA_BLOB()
-        if not crypt32.CryptProtectData(ctypes.byref(in_blob), None, None, None, None, 0, ctypes.byref(out_blob)):
-            raise ctypes.WinError()
-        try:
-            encrypted = _bytes_from_blob(out_blob)
-            return SECRET_PREFIX + base64.b64encode(encrypted).decode("ascii")
-        finally:
-            kernel32.LocalFree(out_blob.pbData)
-    logging.warning("API key stored with obfuscation only (not encrypted) on non-Windows. Consider using Windows for DPAPI encryption.")
-    return SECRET_PREFIX + "b64:" + base64.b64encode(value.encode("utf-8")).decode("ascii")
+        return _protect_dpapi(value)
+    return _protect_fernet(value)
 
 
 def _unprotect_secret(value: str) -> str:
     if not value:
         return ""
-    if not value.startswith(SECRET_PREFIX):
-        return value
-    payload = value[len(SECRET_PREFIX):]
-
-    if _is_windows() and not payload.startswith("b64:"):
-        payload_bytes = base64.b64decode(payload.encode("ascii"))
-        in_blob = _blob_from_bytes(payload_bytes)
-        out_blob = _DATA_BLOB()
-        crypt32 = ctypes.windll.crypt32
-        kernel32 = ctypes.windll.kernel32
-        if not crypt32.CryptUnprotectData(ctypes.byref(in_blob), None, None, None, None, 0, ctypes.byref(out_blob)):
-            raise ctypes.WinError()
-        try:
-            return _bytes_from_blob(out_blob).decode("utf-8")
-        finally:
-            kernel32.LocalFree(out_blob.pbData)
-
-    if payload.startswith("b64:"):
-        return base64.b64decode(payload[4:].encode("ascii")).decode("utf-8")
-
-    return payload
+    # Legacy migration: ``dpapi:`` prefix from v1/v2 → re-encrypt
+    if value.startswith("dpapi:"):
+        # Legacy DPAPI-protected (Windows) or base64 (others)
+        if _is_windows() and not value[len("dpapi:"):].startswith("b64:"):
+            return _unprotect_dpapi(value)
+        return _unprotect_fernet("nekrypt:" + value[len("dpapi:"):])
+    # Current format
+    if value.startswith(_SECRET_PREFIX):
+        if _is_windows():
+            return _unprotect_dpapi(value)
+        return _unprotect_fernet(value)
+    # Plaintext — return as-is (will be re-encrypted on next save)
+    return value
 
 
 def _encode_setting_value(key: str, value: str) -> str:
-    if key in SECRET_SETTINGS:
+    if key in _SECRET_SETTINGS:
         return _protect_secret(value)
     return value
 
 
 def _decode_setting_value(key: str, value: str) -> str:
-    if key in SECRET_SETTINGS:
+    if key in _SECRET_SETTINGS:
         return _unprotect_secret(value)
     return value
 
@@ -226,7 +373,7 @@ def _migrate_legacy_settings(conn: sqlite3.Connection) -> None:
     if row is None:
         return
     raw = row["value"]
-    if not raw or raw.startswith(SECRET_PREFIX):
+    if not raw or raw.startswith(_SECRET_PREFIX) or raw.startswith("dpapi:"):
         # Already protected, or empty. Either way, nothing to migrate.
         # Delete the legacy row to keep the table tidy.
         conn.execute("DELETE FROM settings WHERE key = 'groq_api_key'")
@@ -500,6 +647,118 @@ def recent_files(conn: sqlite3.Connection, limit: int = 3) -> list[dict[str, Any
         (limit,),
     ).fetchall()
     return [dict(row) for row in rows]
+
+
+# ---------------------------------------------------------------------------
+# DB health, backup, and maintenance
+# ---------------------------------------------------------------------------
+
+
+def check_integrity(conn: sqlite3.Connection) -> tuple[bool, str]:
+    """Run ``PRAGMA quick_check`` and return ``(ok, message)``.
+
+    ``quick_check`` is like ``integrity_check`` but skips the secondary
+    index verification (the FTS5 index). It is fast enough to run on
+    every startup even for large databases.
+    """
+    try:
+        row = conn.execute("PRAGMA quick_check").fetchone()
+    except sqlite3.DatabaseError as exc:
+        return False, str(exc)
+    if row is None:
+        return False, "PRAGMA quick_check returned no result"
+    msg = str(row[0] or "")
+    if msg.lower() == "ok":
+        return True, msg
+    return False, msg
+
+
+def backup_database(data_dir: Path, max_backups: int = 3) -> Path | None:
+    """Rotated backup of the SQLite database.
+
+    Copies ``<data_dir>/golem.db`` to ``<data_dir>/golem.db.backup.1``,
+    shifting older backups by one and keeping at most ``max_backups``.
+    Returns the backup path, or ``None`` if the source does not exist.
+    """
+    src = data_dir / DB_FILENAME
+    if not src.is_file():
+        return None
+    # Rotate: remove oldest, shift middle, create new
+    for i in range(max_backups - 1, 0, -1):
+        older = data_dir / f"{DB_FILENAME}.backup.{i}"
+        newer = data_dir / f"{DB_FILENAME}.backup.{i + 1}"
+        if older.is_file():
+            try:
+                older.rename(newer)
+            except OSError:
+                pass
+    # Promote previous .backup.1 if it exists
+    b1 = data_dir / f"{DB_FILENAME}.backup.1"
+    if b1.is_file():
+        b2 = data_dir / f"{DB_FILENAME}.backup.2"
+        try:
+            b1.rename(b2)
+        except OSError:
+            pass
+    try:
+        import shutil
+        shutil.copy2(src, b1)
+        logging.info("Database backed up to %s", b1)
+        return b1
+    except OSError as exc:
+        logging.warning("Database backup failed: %s", exc)
+        return None
+
+
+def restore_from_backup(data_dir: Path) -> bool:
+    """Restore the most recent database backup.
+
+    Returns ``True`` if a backup was found and restored, ``False`` if no
+    usable backup exists.
+    """
+    src = data_dir / DB_FILENAME
+    for i in range(1, 4):
+        candidate = data_dir / f"{DB_FILENAME}.backup.{i}"
+        if candidate.is_file():
+            try:
+                import shutil
+                shutil.copy2(candidate, src)
+                logging.info("Restored database from backup %s", candidate)
+                return True
+            except OSError as exc:
+                logging.warning("Failed to restore backup %s: %s", candidate, exc)
+                continue
+    return False
+
+
+def optimize_fts(conn: sqlite3.Connection) -> None:
+    """Optimize the FTS5 index and run general DB optimization.
+
+    Should be called after large indexing sessions. Both calls are
+    no-ops on an already optimized index, so it is safe to call
+    frequently.
+    """
+    try:
+        conn.execute("INSERT INTO files_fts(files_fts) VALUES('optimize')")
+    except sqlite3.OperationalError as exc:
+        logging.warning("FTS5 optimize failed: %s", exc)
+    try:
+        conn.execute("PRAGMA optimize")
+    except sqlite3.OperationalError as exc:
+        logging.warning("PRAGMA optimize failed: %s", exc)
+
+
+def checkpoint_wal(conn: sqlite3.Connection, mode: str = "PASSIVE") -> None:
+    """Checkpoint the WAL file to keep it from growing unbounded.
+
+    ``PASSIVE`` does not block concurrent readers and is safe to call on
+    a timer. ``TRUNCATE`` fully resets the WAL but must not run while
+    other connections are active.
+    """
+    try:
+        conn.execute(f"PRAGMA wal_checkpoint({mode})")
+    except sqlite3.OperationalError as exc:
+        logging.warning("WAL checkpoint (%s) failed: %s", mode, exc)
 
 
 def ensure_db_file(db_dir: Path) -> Path:

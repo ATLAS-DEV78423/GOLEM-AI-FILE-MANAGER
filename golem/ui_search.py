@@ -69,12 +69,14 @@ class SearchPopup:
         on_search: Callable[[str], dict[str, Any]],
         on_open: Callable[[str], None],
         on_reveal: Callable[[str], None],
+        on_settings: Callable[[], None] | None = None,
         config: SearchPopupConfig | None = None,
     ):
         self.root = root
         self._on_search = on_search
         self._on_open = on_open
-        self._on_reveal = on_reveal
+        self._on_reveal_callback = on_reveal
+        self._on_settings_callback = on_settings
         self.config = config or SearchPopupConfig()
         self.window: tk.Toplevel | None = None
         self._query: tk.Entry | None = None
@@ -162,6 +164,15 @@ class SearchPopup:
             self.open()
 
     # ------------------------------------------------------------------
+    # Settings shortcut
+    # ------------------------------------------------------------------
+
+    def _open_settings(self) -> None:
+        if self._on_settings_callback is not None:
+            self._on_settings_callback()
+        self.hide()
+
+    # ------------------------------------------------------------------
     # Build
     # ------------------------------------------------------------------
 
@@ -172,6 +183,7 @@ class SearchPopup:
         strip_window_chrome(win, hide_titlebar=True)
         win.minsize(self.config.width - 80, 200)
         win.bind("<Escape>", lambda _e: self.hide())
+        win.bind("<Control-comma>", lambda _e: self._open_settings())
 
         outer = tk.Frame(win, bg=COLORS.border.subtle, bd=0, highlightthickness=0)
         outer.pack(fill="both", expand=True)
@@ -203,6 +215,7 @@ class SearchPopup:
                 ("↑↓", "navigate"),
                 ("↵", "open"),
                 ("⌘↵", "reveal"),
+                ("⌘,", "settings"),
                 ("esc", "close"),
             ],
         ).pack(fill="x")
@@ -238,6 +251,19 @@ class SearchPopup:
         self._query.bind("<Down>", lambda _e: self._list_select(1))
         self._query.bind("<Home>", lambda _e: self._list_first())
         self._query.bind("<End>", lambda _e: self._list_last())
+        self._query.bind("<Escape>", lambda _e: self._on_escape())
+        # Clear button (right side of command bar)
+        self._clear_btn_img = get_icon("x", size=12, color=COLORS.fg.tertiary, master=bar)
+        self._clear_btn = tk.Label(
+            bar, image=self._clear_btn_img,
+            bg=COLORS.bg.panel,
+            cursor="hand2",
+        )
+        self._clear_btn.image = self._clear_btn_img  # type: ignore[attr-defined]
+        self._clear_btn.pack(side="right", padx=(SPACING.sm, 0))
+        self._clear_btn.bind("<Button-1>", lambda _e: self._clear_query())
+        self._clear_btn.bind("<Enter>", lambda _e: self._clear_btn.configure(bg=COLORS.bg.hover))
+        self._clear_btn.bind("<Leave>", lambda _e: self._clear_btn.configure(bg=COLORS.bg.panel))
         # Placeholder behavior
         self._query_var.set(self._placeholder)
         self._query.configure(foreground=COLORS.fg.tertiary)
@@ -245,6 +271,29 @@ class SearchPopup:
         self._query.bind("<FocusIn>", self._on_focus_in)
         self._query.bind("<FocusOut>", self._on_focus_out)
         return bar
+
+    def _clear_query(self) -> None:
+        """Clear the search query and show idle state."""
+        if self._query_var is not None:
+            self._query_var.set("")
+        if self._query is not None:
+            self._query.focus_set()
+        if not self._placeholder_active:
+            self._show_idle_state()
+        if self._search_after_id is not None:
+            try:
+                self.root.after_cancel(self._search_after_id)
+            except tk.TclError:
+                pass
+            self._search_after_id = None
+
+    def _on_escape(self) -> None:
+        """Clear query on first Escape, close on second."""
+        q = self._query_var.get() if self._query_var else ""
+        if q and not self._placeholder_active:
+            self._clear_query()
+        else:
+            self.hide()
 
     # ------------------------------------------------------------------
     # Placeholder behavior
@@ -326,10 +375,10 @@ class SearchPopup:
     def _kick_search(self, query: str) -> None:
         self._search_generation += 1
         generation = self._search_generation
-        # Show "searching" state
+        # Show shimmer skeleton loading state
         if not self.results:
             assert self._list is not None
-            self._list.show_empty("spinner", "Searching…", "")
+            self._list.show_shimmer()
 
         def worker() -> None:
             try:
@@ -400,19 +449,19 @@ class SearchPopup:
 
     def _show_idle_state(self) -> None:
         assert self._list is not None
-        self._list.show_empty(
-            "search",
-            "Search your vault",
-            "Drop a file into the watched folder to start. Press Esc to close.",
-        )
+        if not self.results:
+            self._list.show_empty(
+                "search",
+                "Search your vault",
+                "Drop a file into the watched folder to start. Press Esc to close.",
+            )
 
     def set_status(self, message: str) -> None:
         # The status bar moved to the bottom of the search popup via
         # the FooterHints row; this method is kept for backward compat.
-        if not message:
+        if not message or self._query_var is None or self._query is None:
             return
         # Update placeholder text with the message as a hint.
-        assert self._query_var is not None and self._query is not None
         if not self._query_var.get() or self._placeholder_active:
             try:
                 self._query_var.set(message)
@@ -431,8 +480,8 @@ class SearchPopup:
             self._on_open(path)
             self.hide()
 
-    def _reveal_payload(self, payload: Any) -> None:
+    def _on_reveal(self, payload: Any) -> None:
         path = str(payload)
         if path:
-            self._on_reveal(path)
+            self._on_reveal_callback(path)
             self.hide()

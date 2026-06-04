@@ -1,0 +1,12 @@
+[Desktop Entry]
+Type=Application
+Name=GOLEM
+GenericName=AI File Manager for Obsidian
+Comment=Local-first AI file manager that organizes files into your Obsidian vault
+Icon=golem
+Exec=GOLEM
+Terminal=false
+Categories=Utility;Office;FileManager;
+Keywords=obsidian;files;organizer;ai;note-taking;
+StartupNotify=true
+StartupWMClass=GOLEM

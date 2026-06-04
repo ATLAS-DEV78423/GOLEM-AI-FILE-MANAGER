@@ -22,6 +22,8 @@ class AppConfig:
     default_category: str = DEFAULT_CATEGORY
     terms_accepted: bool = False
     terms_version: str = TERMS_VERSION
+    autostart_enabled: bool = False
+    search_window_geometry: str = ""
 
     def as_settings(self) -> dict[str, str]:
         return {
@@ -37,6 +39,8 @@ class AppConfig:
             "default_category": self.default_category,
             "terms_accepted": "1" if self.terms_accepted else "0",
             "terms_version": self.terms_version,
+            "autostart_enabled": "1" if self.autostart_enabled else "0",
+            "search_window_geometry": self.search_window_geometry,
         }
 
     @classmethod
@@ -59,4 +63,6 @@ class AppConfig:
             default_category=settings.get("default_category", DEFAULT_CATEGORY),
             terms_accepted=settings.get("terms_accepted", "0") == "1",
             terms_version=settings.get("terms_version", TERMS_VERSION),
+            autostart_enabled=settings.get("autostart_enabled", "0") == "1",
+            search_window_geometry=settings.get("search_window_geometry", ""),
         )

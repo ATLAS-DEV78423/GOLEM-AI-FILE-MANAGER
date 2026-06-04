@@ -34,6 +34,7 @@ from .ui_anim import (
     _Animation,
     color_transition,
     indeterminate_bar,
+    shimmer_skeleton,
     tick_dots,
 )
 from .ui_icons import get_icon
@@ -587,7 +588,6 @@ class EmptyState:
         icon.image = icon_img  # type: ignore[attr-defined]
         icon.pack(pady=(0, SPACING.md))
 
-        ttk.Label(inner, text=self.headline, style="Title.TLabel").pack(pady=(0, SPACING.xs))
         head_lbl = ttk.Label(inner, text=self.headline, style="Title.TLabel")
         head_lbl.pack(pady=(0, SPACING.xs))
         if self.body:
@@ -655,8 +655,9 @@ class StepIndicator:
                             highlightthickness=0, bd=0)
             dot.pack(side="left", padx=(SPACING.md, SPACING.xs))
             self._dots.append(dot)
-            ttk.Label(col, text=name, style="Micro.TLabel").pack(side="left")
-            self._labels.append(self._labels[-1] if self._labels else None)
+            lbl = ttk.Label(col, text=name, style="Micro.TLabel")
+            lbl.pack(side="left")
+            self._labels.append(lbl)
             if idx < len(self.steps) - 1:
                 sep = tk.Frame(self._frame, bg=COLORS.border.subtle, height=1, bd=0)
                 sep.pack(side="left", fill="x", expand=True, padx=SPACING.sm)
@@ -792,6 +793,53 @@ class HoverList:
             return self._rows[self._selected].payload
         return None
 
+    def show_shimmer(self) -> None:
+        """Display a shimmer skeleton loading state in the list area.
+
+        Replaces the previous empty state with a subtle sweep animation
+        that looks like rows being loaded.
+        """
+        self._clear_items()
+        self._rows = []
+        self._selected = -1
+        self._hovered = -1
+        self._canvas.delete("all")
+        # Draw 6 shimmer rows
+        cw = max(100, self._canvas.winfo_width())
+        ch = max(100, self._canvas.winfo_height())
+        row_h = self.row_height
+        num_rows = max(3, min(6, ch // row_h))
+        start_y = (ch - num_rows * row_h) // 2
+        # Cancel any previous shimmer
+        if hasattr(self._canvas, "_golem_shimmer"):
+            try:
+                getattr(self._canvas, "_golem_shimmer").cancel()
+            except Exception:
+                pass
+        for i in range(num_rows):
+            y = start_y + i * row_h + 6
+            bar_w = cw - 120 - int(40 * (i / num_rows))
+            self._canvas.create_rectangle(
+                20, y, 20 + int(0.7 * bar_w), y + 14,
+                fill=COLORS.bg.elevated, outline="", tags=("_shimmer_row",),
+            )
+            self._canvas.create_rectangle(
+                20, y + 20, 20 + int(0.4 * bar_w), y + 28,
+                fill=COLORS.bg.elevated, outline="", tags=("_shimmer_row",),
+            )
+        try:
+            anim = shimmer_skeleton(
+                self._canvas,
+                x=-20, y=-20,
+                width=cw + 40, height=ch + 40,
+                base_color=COLORS.bg.panel,
+                highlight_color=COLORS.bg.elevated,
+                period_ms=1600,
+            )
+            setattr(self._canvas, "_golem_shimmer", anim)
+        except Exception:
+            pass
+
     def show_empty(self, icon: str, headline: str, body: str = "") -> None:
         """Display the empty state inside the list area."""
         self._clear_items()
@@ -801,13 +849,12 @@ class HoverList:
         self._canvas.delete("all")
         empty = EmptyState(self._canvas, icon=icon, headline=headline, body=body)
         empty.build()
-        # Re-parent into the canvas
-        for child in self._frame.winfo_children():
-            if child is empty._frame:
-                continue
+        # Re-parent into the canvas, centered
+        cw = max(1, self._canvas.winfo_width())
+        ch = max(1, self._canvas.winfo_height())
         win = self._canvas.create_window(
-            self._canvas.winfo_width() // 2,
-            self._canvas.winfo_height() // 2,
+            cw // 2,
+            ch // 2,
             window=empty._frame,
         )
         self._empty_widgets = (empty, win)
@@ -821,25 +868,48 @@ class HoverList:
             except tk.TclError:
                 pass
             self._empty_widgets = None
+        # Also cancel any in-flight shimmer
+        if hasattr(self._canvas, "_golem_shimmer"):
+            try:
+                getattr(self._canvas, "_golem_shimmer").cancel()
+            except Exception:
+                pass
+            setattr(self._canvas, "_golem_shimmer", None)
+        if self._empty_widgets is not None:
+            try:
+                empty, win = self._empty_widgets
+                self._canvas.delete(win)
+                empty._frame.destroy()
+            except tk.TclError:
+                pass
+            self._empty_widgets = None
 
     def _select(self, idx: int) -> None:
         if idx == self._selected:
             return
         self._selected = idx
-        # Make sure selected is visible
+        # Make sure selected is visible with smooth scroll
         if idx < self._offset:
-            self._offset = idx
-            total = max(1, len(self._rows) - self._items_per_page)
-            start = self._offset / total
-            view = min(1.0, self._items_per_page / max(1, len(self._rows)))
-            self._scrollbar.set(start, min(1.0, start + view))
+            self._offset = max(0, idx)
+            self._sync_scrollbar()
         elif idx >= self._offset + self._items_per_page:
-            self._offset = idx - self._items_per_page + 1
-            total = max(1, len(self._rows) - self._items_per_page)
-            start = self._offset / total
-            view = min(1.0, self._items_per_page / max(1, len(self._rows)))
-            self._scrollbar.set(start, min(1.0, start + view))
+            self._offset = min(
+                max(0, len(self._rows) - self._items_per_page),
+                idx - self._items_per_page + 1,
+            )
+            self._sync_scrollbar()
         self._render()
+
+    def _sync_scrollbar(self) -> None:
+        """Update the scrollbar position to reflect the current offset."""
+        total_rows = max(1, len(self._rows))
+        max_offset = max(0, total_rows - self._items_per_page)
+        if max_offset > 0:
+            frac = self._offset / max_offset
+            view = min(1.0, self._items_per_page / total_rows)
+            self._scrollbar.set(frac, min(1.0, frac + view))
+        else:
+            self._scrollbar.set(0.0, 1.0)
 
     def _set_hovered(self, idx: int) -> None:
         if idx == self._hovered:

@@ -1,5 +1,6 @@
 # -*- mode: python ; coding: utf-8 -*-
 from pathlib import Path
+import os
 import sys
 
 block_cipher = None
@@ -27,6 +28,14 @@ a = Analysis(
         "openpyxl",
         "pypdf",
         "docx",
+        "defusedxml",
+        "defusedxml.ElementTree",
+        "cryptography",
+        "cryptography.fernet",
+        "cryptography.hazmat",
+        "cryptography.hazmat.backends",
+        "cryptography.hazmat.primitives",
+        "cffi",
     ],
     hookspath=[],
     hooksconfig={},
@@ -35,6 +44,11 @@ a = Analysis(
     noarchive=False,
 )
 pyz = PYZ(a.pure, a.zipped_data, cipher=block_cipher)
+
+# Read target architecture from environment (set by build_macos.sh).
+# Values: "x86_64", "arm64", "universal2", or None (native).
+_pyi_arch = os.environ.get("GOLEM_PYI_ARCH") or None
+
 exe = EXE(
     pyz,
     a.scripts,
@@ -50,7 +64,7 @@ exe = EXE(
     console=False,
     disable_windowed_traceback=False,
     argv_emulation=False,
-    target_arch=None,
+    target_arch=_pyi_arch,
     codesign_identity=None,
     entitlements_file=None,
 )
@@ -77,5 +91,7 @@ if sys.platform == "darwin":
             "CFBundleShortVersionString": "2.0.0",
             "CFBundleVersion": "2.0.0",
             "NSHighResolutionCapable": True,
+            # Include both architectures in the bundle metadata
+            "CFBundleSupportedPlatforms": ["MacOSX"],
         },
     )

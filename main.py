@@ -58,6 +58,16 @@ def _build_parser() -> argparse.ArgumentParser:
         action="store_true",
         help="Print the GOLEM version and exit.",
     )
+    parser.add_argument(
+        "--install-autostart",
+        action="store_true",
+        help="Register GOLEM to launch at system startup.",
+    )
+    parser.add_argument(
+        "--remove-autostart",
+        action="store_true",
+        help="Remove the system startup registration for GOLEM.",
+    )
     return parser
 
 

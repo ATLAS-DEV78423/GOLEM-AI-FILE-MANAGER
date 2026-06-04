@@ -6,6 +6,25 @@ All notable changes to GOLEM are documented in this file. Versions follow
 ## [Unreleased]
 
 ### Security
+- **XML parsing**: replaced unsafe `xml.etree.ElementTree` with `defusedxml`
+  to prevent XML bomb (Billion Laughs) attacks in Office document extraction.
+  Added `defusedxml>=0.7.1` to dependencies and PyInstaller hidden imports.
+- **Encryption**: fixed missing `import sys` in `indexer.py` that would cause a
+  `NameError` on macOS/Linux when encrypting API keys. Fixed `_unprotect_fernet`
+  to catch `base64` decode errors from tampered ciphertext.
+
+### Build
+- **Windows installer**: fixed `build_windows_installer.ps1` to set `PYTHONPATH`
+  before generating the payload manifest so the `golem` module can be imported.
+- **Build validation**: verified all build scripts parse correctly. Mypy is clean
+  (0 errors). All 151 tests pass.
+
+### Docs
+- **Download guides**: added `docs/DOWNLOAD_WINDOWS.md`, `docs/DOWNLOAD_MACOS.md`,
+  and `docs/DOWNLOAD_LINUX.md` with per-platform system requirements, install
+  options, and troubleshooting.
+
+### Security
 - **Installer**: payload source must be inside a build output directory; the
   `GOLEM_PAYLOAD_DIR` env var no longer points to arbitrary folders. Set
   `GOLEM_PAYLOAD_BYPASS_ROOT_CHECK=1` to opt out (trusted callers only).

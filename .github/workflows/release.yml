@@ -32,11 +32,6 @@ jobs:
             $version = $version.Substring(1)
           }
           "GOLEM_VERSION=$version" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
-          # Signing is opt-in: if neither a PFX path nor a certificate
-          # SHA1 is configured, the build script sets GOLEM_SKIP_SIGNING
-          # and the artifact is uploaded unsigned. This keeps CI green
-          # for forks and public PRs while leaving a real sign path for
-          # the maintainer.
           if (-not $env:GOLEM_SIGN_PFX_PATH -and -not $env:GOLEM_SIGN_CERT_SHA1) {
             "GOLEM_SKIP_SIGNING=1" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
           }
@@ -65,7 +60,7 @@ jobs:
             dist/releases/windows/GOLEM-*-windows-installer.exe
           if-no-files-found: error
 
-  build-macos:
+  build-macos-x86_64:
     runs-on: macos-latest
     steps:
       - name: Checkout
@@ -80,17 +75,7 @@ jobs:
           if [[ "$VERSION" == v* ]]; then
             VERSION="${VERSION#v}"
           fi
-          {
-            echo "GOLEM_VERSION=$VERSION"
-          } >> "$GITHUB_ENV"
-          # macOS code signing + notarization is opt-in. Provide
-          # MACOS_CERT_P12_BASE64 (base64 of the Developer ID .p12),
-          # MACOS_CERT_PASSWORD, and the notarization secrets to enable.
-          # Without them the build script signs the .app ad-hoc and
-          # skips notarization (suitable for internal testing only).
-          if [[ -z "$MACOS_CERT_P12_BASE64" ]]; then
-            echo "GOLEM_SKIP_SIGNING=1" >> "$GITHUB_ENV"
-          fi
+          echo "GOLEM_VERSION=$VERSION" >> "$GITHUB_ENV"
 
       - name: Set up Python
         uses: actions/setup-python@v5
@@ -103,40 +88,174 @@ jobs:
           pip install -r requirements.txt
           pip install -r requirements-build.txt
 
-      - name: Build macOS release artifacts
-        run: ./release_macos.sh
+      - name: Build macOS release artifacts (x86_64)
+        run: GOLEM_ARCH=x86_64 ./build_macos.sh
 
-      - name: Upload macOS artifacts
+      - name: Upload macOS x86_64 artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: macos-release
-          path: dist/releases/macos/GOLEM-*-macOS.dmg
+          name: macos-x86_64-release
+          path: dist/GOLEM-macOS-x86_64.dmg
           if-no-files-found: error
+
+  build-macos-arm64:
+    runs-on: macos-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Resolve release version
+        run: |
+          VERSION="${{ github.event.inputs.version }}"
+          if [[ -z "$VERSION" ]]; then
+            VERSION="${GITHUB_REF_NAME}"
+          fi
+          if [[ "$VERSION" == v* ]]; then
+            VERSION="${VERSION#v}"
+          fi
+          echo "GOLEM_VERSION=$VERSION" >> "$GITHUB_ENV"
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install dependencies
+        run: |
+          python3 -m pip install --upgrade pip
+          pip install -r requirements.txt
+          pip install -r requirements-build.txt
+
+      - name: Build macOS release artifacts (arm64)
+        run: GOLEM_ARCH=arm64 ./build_macos.sh
+
+      - name: Upload macOS arm64 artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: macos-arm64-release
+          path: dist/GOLEM-macOS-arm64.dmg
+          if-no-files-found: error
+
+  build-linux-x86_64:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Resolve release version
+        run: |
+          VERSION="${{ github.event.inputs.version }}"
+          if [[ -z "$VERSION" ]]; then
+            VERSION="${GITHUB_REF_NAME}"
+          fi
+          if [[ "$VERSION" == v* ]]; then
+            VERSION="${VERSION#v}"
+          fi
+          echo "GOLEM_VERSION=$VERSION" >> "$GITHUB_ENV"
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install dependencies
+        run: |
+          python3 -m pip install --upgrade pip
+          pip install -r requirements.txt
+          pip install -r requirements-build.txt
+
+      - name: Install packaging tools
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y dpkg-dev fakeroot
+
+      - name: Build Linux release artifacts (x86_64)
+        run: GOLEM_ARCH=x86_64 ./build_linux_installer.sh
+
+      - name: Upload Linux x86_64 artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: linux-x86_64-release
+          path: |
+            dist/GOLEM-*-linux-x86_64.tar.gz
+            dist/*.AppImage
+            dist/*.deb
+          if-no-files-found: warn
+
+  build-linux-aarch64:
+    # aarch64 Linux builds require an ARM64 runner. GitHub-hosted ARM64
+    # Linux runners are available via the `ubuntu-24.04-arm` image.
+    runs-on: ubuntu-24.04-arm
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Resolve release version
+        run: |
+          VERSION="${{ github.event.inputs.version }}"
+          if [[ -z "$VERSION" ]]; then
+            VERSION="${GITHUB_REF_NAME}"
+          fi
+          if [[ "$VERSION" == v* ]]; then
+            VERSION="${VERSION#v}"
+          fi
+          echo "GOLEM_VERSION=$VERSION" >> "$GITHUB_ENV"
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install dependencies
+        run: |
+          python3 -m pip install --upgrade pip
+          pip install -r requirements.txt
+          pip install -r requirements-build.txt
+
+      - name: Install packaging tools
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y dpkg-dev fakeroot
+
+      - name: Build Linux release artifacts (aarch64)
+        run: GOLEM_ARCH=aarch64 ./build_linux_installer.sh
+
+      - name: Upload Linux aarch64 artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: linux-aarch64-release
+          path: |
+            dist/GOLEM-*-linux-aarch64.tar.gz
+            dist/*.AppImage
+            dist/*.deb
+          if-no-files-found: warn
 
   publish-release:
     needs:
       - build-windows
-      - build-macos
+      - build-macos-x86_64
+      - build-macos-arm64
+      - build-linux-x86_64
+      - build-linux-aarch64
     runs-on: ubuntu-latest
     permissions:
       contents: write
     steps:
-      - name: Download Windows artifacts
+      - name: Download all artifacts
         uses: actions/download-artifact@v4
         with:
-          name: windows-release
-          path: release-artifacts/windows
+          path: release-artifacts
 
-      - name: Download macOS artifacts
-        uses: actions/download-artifact@v4
-        with:
-          name: macos-release
-          path: release-artifacts/macos
+      - name: Organize artifacts for release
+        run: |
+          mkdir -p release-artifacts/compiled
+          # Flatten all artifact directories into a single directory
+          find release-artifacts -type f \( -name "*.exe" -o -name "*.dmg" -o -name "*.tar.gz" -o -name "*.AppImage" -o -name "*.deb" \) -exec cp {} release-artifacts/compiled/ \;
 
       - name: Generate SHA256 checksums
-        working-directory: release-artifacts
+        working-directory: release-artifacts/compiled
         run: |
-          find . -type f \( -name "*.exe" -o -name "*.dmg" -o -name "*.zip" -o -name "*.tar.gz" \) -exec sha256sum {} \; > SHA256SUMS.txt
+          sha256sum * > SHA256SUMS.txt
           cat SHA256SUMS.txt
 
       - name: Create source archive
@@ -146,20 +265,10 @@ jobs:
           mkdir -p source
           git archive --format=tar.gz --prefix="GOLEM-${VERSION}/" -o "source/GOLEM-${VERSION}-source.tar.gz" ${{ github.sha }}
 
-      - name: Generate SBOM (SPDX)
-        uses: anchore/sbom-action@v0
-        with:
-          format: spdx-json
-          artifact-name: golem.spdx.json
-
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
         with:
           files: |
-            release-artifacts/**/*.exe
-            release-artifacts/**/*.dmg
-            release-artifacts/**/*.tar.gz
-            release-artifacts/**/SHA256SUMS.txt
-            release-artifacts/**/golem.spdx.json
+            release-artifacts/compiled/*
           generate_release_notes: true
           draft: ${{ github.event_name != 'push' }}

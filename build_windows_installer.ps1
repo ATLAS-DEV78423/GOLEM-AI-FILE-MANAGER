@@ -13,25 +13,43 @@ function Find-Python {
   return $null
 }
 
+Write-Host "=== GOLEM Windows Build ===" -ForegroundColor Cyan
+
 $venv = Join-Path $root '.venv-build'
 $python = Join-Path $venv 'Scripts\python.exe'
 
 if (-not (Test-Path $python)) {
   $systemPython = Find-Python
   if (-not $systemPython) {
-    throw "Python 3.11+ is required to build GOLEM. Install from https://python.org (ensuring 'Add Python to PATH' is checked) and retry."
+    throw "Python 3.11+ is required to build GOLEM. Install from https://python.org and retry."
   }
-  Write-Host "Creating build venv at $venv using $systemPython"
+  Write-Host "Creating build venv at $venv using $systemPython" -ForegroundColor Yellow
   & $systemPython -m venv $venv
   & $python -m pip install --upgrade pip
-  & $python -m pip install -r requirements.txt
-  if (Test-Path (Join-Path $root 'requirements-build.txt')) {
-    & $python -m pip install -r requirements-build.txt
-  }
+  & $python -m pip install -r requirements-build.txt
 }
 
+Write-Host "Step 1/4: Building GOLEM application bundle..." -ForegroundColor Cyan
 & $python -m PyInstaller .\golem.spec --noconfirm --clean
-& $python .\scripts\write_payload_manifest.py .\dist\GOLEM
-& $python -m PyInstaller .\installer.spec --noconfirm --clean
+if ($LASTEXITCODE -ne 0) { throw "PyInstaller build for GOLEM failed." }
 
-Write-Host "Windows installer artifacts are in .\dist\GOLEM\ and .\dist\GOLEM-Setup.exe."
+Write-Host "Step 2/4: Generating payload manifest..." -ForegroundColor Cyan
+# Set PYTHONPATH so write_payload_manifest can import golem.constants
+$env:PYTHONPATH = (Get-Location).Path
+& $python .\scripts\write_payload_manifest.py .\dist\GOLEM
+
+Write-Host "Step 3/4: Building installer..." -ForegroundColor Cyan
+& $python -m PyInstaller .\installer.spec --noconfirm --clean
+if ($LASTEXITCODE -ne 0) { throw "PyInstaller build for installer failed." }
+
+# Rename installer to a clean name
+if (Test-Path ".\dist\GOLEM-Setup.exe") {
+  $version = "2.0.0"
+  $finalName = "GOLEM-Setup-$version.exe"
+  Move-Item ".\dist\GOLEM-Setup.exe" ".\dist\$finalName" -Force
+  Write-Host "Step 4/4: Renamed installer to $finalName" -ForegroundColor Cyan
+}
+
+Write-Host "`n=== Build complete ===" -ForegroundColor Green
+Write-Host "Application bundle: .\dist\GOLEM\"
+Write-Host "Installer: .\dist\$finalName"

@@ -1,0 +1,35 @@
+{
+  "hooks": {
+    "PostToolUse": [
+      {
+        "matcher": "Write|Edit",
+        "hooks": [
+          {
+            "type": "agent",
+            "prompt": "Comprehensive debugging check: Run all tests and verify they pass. Check for type errors using mypy or similar type checker. Check code quality with linting (black, flake8, pylint, or similar). Report any failures, warnings, or issues found. Focus on correctness and code quality.",
+            "statusMessage": "Running debugging agent...",
+            "timeout": 120
+          },
+          {
+            "type": "agent",
+            "prompt": "UI and formatting validation: If there are UI/frontend files changed, run the application and visually verify the changes look correct and polished. Validate that code formatting matches project style (check indentation, line length, consistent styling). For accessibility concerns, check that any UI changes follow accessibility standards (color contrast, keyboard navigation if applicable). Report findings.",
+            "statusMessage": "Running UI review agent...",
+            "timeout": 90
+          },
+          {
+            "type": "agent",
+            "prompt": "Security audit: Scan the changed code for potential security vulnerabilities including: SQL injection risks, command injection, XSS vulnerabilities, authentication/authorization issues, secret exposure, insecure dependencies, unsafe crypto usage, or OWASP top 10 issues. Be thorough but practical - focus on real risks for this Python/web application. Report any issues found with severity level.",
+            "statusMessage": "Running security audit...",
+            "timeout": 90
+          },
+          {
+            "type": "agent",
+            "prompt": "Functionality verification: Verify that all core features and functionality described in the code are present and working. Check that no existing functionality was accidentally removed or broken. Review the changes to ensure: (1) all required methods/functions are implemented, (2) integrations between components still work, (3) data flow is complete end-to-end, (4) no critical features are missing or disabled. Run the application to confirm key workflows complete successfully. Report any missing, broken, or incomplete functionality.",
+            "statusMessage": "Running functionality check...",
+            "timeout": 120
+          }
+        ]
+      }
+    ]
+  }
+}

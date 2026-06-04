@@ -291,9 +291,8 @@ def scan_folder(
     dry_run: bool = False,
 ) -> ScanResult:
     result = ScanResult()
-    file_iter = list(iter_files(watched_folder))
-    total = max(1, len(file_iter))
-    for index, path in enumerate(file_iter, start=1):
+    total = max(1, count_files(watched_folder))
+    for index, path in enumerate(iter_files(watched_folder), start=1):
         if progress:
             progress(index / total, path.name)
         try:

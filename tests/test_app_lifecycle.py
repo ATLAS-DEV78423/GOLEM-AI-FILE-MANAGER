@@ -233,6 +233,57 @@ class ResetAllTests(unittest.TestCase):
                 finally:
                     app.shutdown()
 
+    def test_save_config_starts_runtime_after_onboarding(self) -> None:
+        """Completing onboarding must wake the app, not leave it inert."""
+        stub_ui = _StubDesktopApp()
+        with patch("golem.app.DesktopApp", return_value=stub_ui), patch(
+            "golem.app.TrayController", _StubTray
+        ), patch("golem.app.PollingWatcher", _StubPollingWatcher):
+            from golem.app import GolemApplication
+
+            data_dir = self.tmp / "data"
+            data_dir.mkdir()
+            with patch("golem.app.default_data_dir", return_value=data_dir), patch(
+                "golem.app.ensure_db_file", return_value=self.db_path
+            ):
+                app = GolemApplication()
+                started: list[bool] = []
+
+                def _mark_started() -> None:
+                    started.append(True)
+
+                with patch.object(app, "_start_runtime_components", side_effect=_mark_started):
+                    try:
+                        app.save_config(
+                            watched="C:/watched",
+                            vault="C:/vault",
+                            provider="heuristic",
+                            api_key="",
+                            model="",
+                            base_url="",
+                            terms_accepted=True,
+                        )
+                    finally:
+                        app.shutdown()
+                self.assertTrue(started, "runtime was not started after onboarding")
+
+    def test_custom_data_dir_is_honored(self) -> None:
+        with patch("golem.app.DesktopApp", _StubDesktopApp), patch(
+            "golem.app.TrayController", _StubTray
+        ), patch("golem.app.PollingWatcher", _StubPollingWatcher):
+            from golem.app import GolemApplication
+
+            custom = self.tmp / "custom-data"
+            custom.mkdir()
+            with patch("golem.app.default_data_dir", return_value=self.tmp / "unused"), patch(
+                "golem.app.ensure_db_file", return_value=self.db_path
+            ):
+                app = GolemApplication(data_dir=custom)
+                try:
+                    self.assertEqual(app.data_dir, custom)
+                finally:
+                    app.shutdown()
+
 
 class StatusBarTests(unittest.TestCase):
     """Regression tests for the status-bar priority logic.

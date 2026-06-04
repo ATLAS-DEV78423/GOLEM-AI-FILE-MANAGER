@@ -51,12 +51,41 @@ jobs:
           fail_ci_if_error: false
 
   build:
-    name: build (${{ matrix.os }})
+    name: build (${{ matrix.os }}, ${{ matrix.arch }})
     needs: test
     strategy:
       fail-fast: false
       matrix:
-        os: [windows-latest, macos-latest, ubuntu-latest]
+        include:
+          - os: windows-latest
+            arch: x86_64
+            build_script: ./build_windows_installer.ps1
+            artifact_name: windows-x86_64
+            upload_pattern: |
+              dist/GOLEM/GOLEM.exe
+              dist/GOLEM-Setup*.exe
+          - os: macos-latest
+            arch: x86_64
+            build_script: GOLEM_ARCH=x86_64 ./build_macos.sh
+            artifact_name: macos-x86_64
+            upload_pattern: |
+              dist/GOLEM.app/*
+              dist/GOLEM-macOS-x86_64.dmg
+          - os: macos-latest
+            arch: arm64
+            build_script: GOLEM_ARCH=arm64 ./build_macos.sh
+            artifact_name: macos-arm64
+            upload_pattern: |
+              dist/GOLEM.app/*
+              dist/GOLEM-macOS-arm64.dmg
+          - os: ubuntu-latest
+            arch: x86_64
+            build_script: GOLEM_ARCH=x86_64 ./build_linux_installer.sh
+            artifact_name: linux-x86_64
+            upload_pattern: |
+              dist/GOLEM-*-linux-x86_64.tar.gz
+              dist/*.AppImage
+              dist/*.deb
     runs-on: ${{ matrix.os }}
     steps:
       - name: Checkout
@@ -74,82 +103,85 @@ jobs:
           pip install -r requirements.txt
           pip install -r requirements-build.txt
 
-      - name: Build (Windows)
-        if: matrix.os == 'windows-latest'
-        shell: pwsh
-        run: ./build_windows_installer.ps1
-
-      - name: Build (macOS)
-        if: matrix.os == 'macos-latest'
-        run: ./build_macos_installer.sh
-
-      - name: Build (Linux)
+      - name: Install Linux build deps
         if: matrix.os == 'ubuntu-latest'
-        run: ./build_linux_installer.sh
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y dpkg-dev fakeroot
 
-      - name: Upload Windows artifacts
-        if: matrix.os == 'windows-latest'
+      - name: Build
+        run: ${{ matrix.build_script }}
+
+      - name: Upload artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: windows-${{ github.sha }}
-          path: |
-            dist/GOLEM/GOLEM.exe
-            dist/GOLEM-Setup.exe
-
-      - name: Upload macOS artifacts
-        if: matrix.os == 'macos-latest'
-        uses: actions/upload-artifact@v4
-        with:
-          name: macos-${{ github.sha }}
-          path: |
-            dist/GOLEM.app/*
-            dist/GOLEM-macOS.dmg
-
-      - name: Upload Linux artifacts
-        if: matrix.os == 'ubuntu-latest'
-        uses: actions/upload-artifact@v4
-        with:
-          name: linux-${{ github.sha }}
-          path: |
-            dist/GOLEM-linux.tar.gz
-            dist/*.AppImage
-
-      - name: Create draft release (Linux runner only)
-        if: matrix.os == 'ubuntu-latest' && github.ref == 'refs/heads/main'
-        uses: softprops/action-gh-release@v1
-        with:
-          tag_name: ${{ github.sha }}
-          name: "Draft release for ${{ github.sha }}"
-          body: |
-            Automated draft release created by CI for commit ${{ github.sha }}.
-          draft: true
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          name: ${{ matrix.artifact_name }}-${{ github.sha }}
+          path: ${{ matrix.upload_pattern }}
+          if-no-files-found: warn
 
   smoke:
-    name: visual-smoke (${{ github.sha }})
+    name: smoke (${{ matrix.arch }})
     needs: build
-    runs-on: ubuntu-latest
-    if: github.ref == 'refs/heads/main'
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-latest
+            arch: x86_64
+            artifact_name: linux-x86_64
+          - os: windows-latest
+            arch: x86_64
+            artifact_name: windows-x86_64
+    runs-on: ${{ matrix.os }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Download Linux artifact
+      - name: Download artifacts
         uses: actions/download-artifact@v4
         with:
-          name: linux-${{ github.sha }}
+          name: ${{ matrix.artifact_name }}-${{ github.sha }}
           path: dist
 
-      - name: Install dependencies for smoke test
+      - name: Install dependencies for smoke test (Linux)
+        if: matrix.os == 'ubuntu-latest'
         run: |
           sudo apt-get update
-          sudo apt-get install -y xvfb xauth procps
+          sudo apt-get install -y python3-pip
+          pip install -r requirements.txt
 
-      - name: Make smoke script executable
+      - name: Install prerequisites for smoke test (Windows)
+        if: matrix.os == 'windows-latest'
+        shell: pwsh
         run: |
-          chmod +x scripts/smoke_test_linux.sh
+          pip install -r requirements.txt
 
-      - name: Run visual smoke test
+      - name: Run smoke test (Linux)
+        if: matrix.os == 'ubuntu-latest'
         run: |
-          ./scripts/smoke_test_linux.sh
+          chmod +x scripts/smoke_test_e2e.sh
+          # Find and pass the binary path
+          BINARY=$(find dist -type f -name "GOLEM" ! -path "*.AppDir*" -print -quit 2>/dev/null || true)
+          if [[ -z "$BINARY" ]]; then
+            # Try AppDir
+            BINARY=$(find dist -type f -executable -name "GOLEM" -print -quit 2>/dev/null || true)
+          fi
+          if [[ -z "$BINARY" ]]; then
+            echo "No binary found in dist/; running Python-level smoke test directly"
+            python3 scripts/smoke_test_e2e.sh
+          else
+            chmod +x "$BINARY"
+            python3 scripts/smoke_test_e2e.sh "$BINARY"
+          fi
+
+      - name: Run smoke test (Windows)
+        if: matrix.os == 'windows-latest'
+        shell: pwsh
+        run: |
+          $binary = Get-ChildItem -Path dist -Recurse -Filter "GOLEM.exe" | Select-Object -First 1 -ExpandProperty FullName
+          if ($binary) {
+            & .\scripts\smoke_test_windows.ps1 $binary
+          } else {
+            Write-Host "No binary found; running Python-level smoke test"
+            python3 .\scripts\smoke_test_windows.ps1
+          }

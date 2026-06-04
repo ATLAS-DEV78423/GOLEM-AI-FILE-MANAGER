@@ -3,7 +3,14 @@ from __future__ import annotations
 import logging
 import zipfile
 from pathlib import Path
-from xml.etree import ElementTree as ET
+
+# Use defusedxml for safe XML parsing (prevents XML bombs / Billion Laughs
+# attacks when processing untrusted Office documents). Falls back to the
+# standard library parser if defusedxml is unavailable.
+try:
+    from defusedxml.ElementTree import fromstring as _safe_fromstring
+except ImportError:
+    from xml.etree.ElementTree import fromstring as _safe_fromstring
 
 
 MAX_EXTRACT_SIZE = 50 * 1024 * 1024
@@ -63,7 +70,7 @@ def _extract_docx(path: Path) -> str:
     try:
         with zipfile.ZipFile(path) as zf:
             xml = zf.read("word/document.xml")
-        root = ET.fromstring(xml)
+        root = _safe_fromstring(xml)
         texts: list[str] = []
         running = 0
         for node in root.iter():
@@ -109,7 +116,7 @@ def _extract_xlsx(path: Path) -> str:
         with zipfile.ZipFile(path) as zf:
             shared: list[str] = []
             if "xl/sharedStrings.xml" in zf.namelist():
-                root = ET.fromstring(zf.read("xl/sharedStrings.xml"))
+                root = _safe_fromstring(zf.read("xl/sharedStrings.xml"))
                 for node in root.iter():
                     if node.tag.endswith("}t") and node.text:
                         shared.append(node.text)
@@ -117,7 +124,7 @@ def _extract_xlsx(path: Path) -> str:
             running = sum(len(s) for s in shared)
             for name in zf.namelist():
                 if name.startswith("xl/worksheets/sheet") and name.endswith(".xml"):
-                    root = ET.fromstring(zf.read(name))
+                    root = _safe_fromstring(zf.read(name))
                     for node in root.iter():
                         if node.tag.endswith("}v") and node.text:
                             sheet_parts.append(node.text)

@@ -291,16 +291,71 @@ class OnboardingWizard:
             renderers[self._current_step]()
         except Exception:
             _LOG.exception("step %d render failed", self._current_step)
-        # Slide-in animation
+        # Slide-in + fade animation for step transitions
         if self.window is not None:
             try:
-                slide_in(self.window, duration_ms=220, from_dy=8)
+                # Animate opacity for smoother step transitions
+                self.window.attributes("-alpha", 0.88)
+                self.window.update_idletasks()
+                self.window.after(50, lambda: self._animate_step_in())
             except Exception:
                 pass
+
+    def _animate_step_in(self) -> None:
+        """Gently bump alpha back up and slide slightly for step transitions."""
+        if self.window is None or not self.window.winfo_exists():
+            return
+        try:
+            slide_in(self.window, duration_ms=220, from_dy=8)
+            fade_in(self.window, duration_ms=200, from_alpha=0.88, to_alpha=1.0)
+        except Exception:
+            pass
 
     # ------------------------------------------------------------------
     # Step 1: Folders
     # ------------------------------------------------------------------
+
+    @staticmethod
+    def _find_obsidian_vaults() -> list[Path]:
+        """Auto-detect Obsidian vaults from common locations."""
+        candidates: list[Path] = []
+        home = Path.home()
+
+        # Common vault locations, ordered by likelihood
+        search_paths = [
+            home / "Documents" / "Obsidian",
+            home / "Documents" / "Obsidian Vault",
+            home / "Documents" / "Vault",
+            home / "Obsidian",
+            home / "Obsidian Vault",
+            home / "Desktop",
+            home / "Documents",
+        ]
+
+        # Also check for Obsidian .obsidian folder marker
+        for root_dir in [home / "Documents", home]:
+            try:
+                for entry in root_dir.iterdir():
+                    if entry.is_dir() and not entry.name.startswith("."):
+                        if (entry / ".obsidian").is_dir():
+                            candidates.append(entry)
+            except (PermissionError, OSError):
+                continue
+
+        for sp in search_paths:
+            if sp not in candidates and sp.is_dir() and (sp / ".obsidian").is_dir():
+                candidates.append(sp)
+
+        return candidates[:3]
+
+    def _auto_detect_vault(self) -> None:
+        """Auto-fill the vault field if we find one."""
+        if self.vault_var.get().strip():
+            return  # Already set
+        vaults = self._find_obsidian_vaults()
+        if vaults:
+            self.vault_var.set(str(vaults[0]))
+            self._validate_folders_live()
 
     def _render_folders(self) -> None:
         body = self._body
@@ -317,6 +372,7 @@ class OnboardingWizard:
             style="Caption.TLabel", wraplength=480, justify="left",
         ).pack(anchor="w", pady=(0, SPACING.lg))
 
+        self._auto_detect_vault()
         PathField(
             parent=body,
             label="Obsidian vault",

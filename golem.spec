@@ -37,12 +37,27 @@ a = Analysis(
         "openpyxl.worksheet",
         "pypdf",
         "docx",
+        # Safe XML parsing (defusedxml fallback for untrusted Office files).
+        "defusedxml",
+        "defusedxml.ElementTree",
+        # Cross-platform secret encryption. The cryptography package has
+        # several C extensions that PyInstaller must bundle. cffi is a
+        # transitive dependency of cryptography on some platforms.
+        "cryptography",
+        "cryptography.fernet",
+        "cryptography.hazmat",
+        "cryptography.hazmat.backends",
+        "cryptography.hazmat.primitives",
+        "cffi",
+        "cffi.api",
+        "cffi.cparser",
         # DPAPI / Windows API. ctypes.wintypes is a submodule that
         # PyInstaller's static analysis does not always pick up. On
         # non-Windows this import is a no-op (the code path is guarded
         # by ``if _is_windows()``), so the hidden import is harmless.
         "ctypes",
         "ctypes.wintypes",
+        "winreg",
     ],
     hookspath=[],
     hooksconfig={},

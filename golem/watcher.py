@@ -143,7 +143,12 @@ class PollingWatcher:
 
     def _run_worker(self) -> None:
         while True:
-            item = self._queue.get()
+            try:
+                item = self._queue.get(timeout=0.5)
+            except queue.Empty:
+                if self._stop.is_set() and self._queue.empty():
+                    return
+                continue
             if item is None:
                 self._queue.task_done()
                 return

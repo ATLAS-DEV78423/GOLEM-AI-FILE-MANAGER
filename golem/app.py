@@ -13,10 +13,24 @@ from dataclasses import dataclass
 from pathlib import Path
 from queue import Queue
 
+from logging.handlers import RotatingFileHandler
+
 from .config import AppConfig
-from .constants import APP_NAME, default_data_dir
+from .constants import APP_NAME, APP_VERSION, default_data_dir
 from .legal import TERMS_VERSION
-from .indexer import connect, ensure_db_file, get_settings, initialize, save_settings, transaction
+from .indexer import (
+    backup_database,
+    check_integrity,
+    checkpoint_wal,
+    connect,
+    ensure_db_file,
+    get_settings,
+    initialize,
+    optimize_fts,
+    restore_from_backup,
+    save_settings,
+    transaction,
+)
 from .search import search_with_fallback
 from .scanner import scan_folder
 from .summarizer import build_summarizer
@@ -26,17 +40,18 @@ from .tray import TrayCallbacks, TrayController
 from .watcher import PollingWatcher
 
 
+_LOG = logging.getLogger(__name__)
 _RELEASES_URL = "https://github.com/ATLAS-DEV78423/GOLEM-AI-FILE-MANAGER/releases"
 
 
-def configure_logging(level: str = "INFO") -> None:
+def configure_logging(level: str = "INFO", data_dir: Path | None = None) -> None:
     """Configure root logging.
 
     Writes to ``<data_dir>/golem.log`` and to stdout. Replaces any
     previously installed handlers (so calling this twice in a test
     does not duplicate output).
     """
-    data_dir = default_data_dir()
+    data_dir = data_dir or default_data_dir()
     try:
         data_dir.mkdir(parents=True, exist_ok=True)
         log_path = data_dir / "golem.log"
@@ -53,7 +68,7 @@ def configure_logging(level: str = "INFO") -> None:
     )
     if log_path is not None:
         try:
-            file_handler = logging.FileHandler(log_path, encoding="utf-8")
+            file_handler = RotatingFileHandler(log_path, maxBytes=5*1024*1024, backupCount=2, encoding="utf-8")
             file_handler.setFormatter(formatter)
             root.addHandler(file_handler)
         except OSError:
@@ -76,11 +91,12 @@ class AppState:
 
 
 class GolemApplication:
-    def __init__(self, dry_run_override: bool | None = None):
-        self.data_dir = default_data_dir()
+    def __init__(self, data_dir: Path | None = None, dry_run_override: bool | None = None):
+        self.data_dir = data_dir or default_data_dir()
         self.db_path = ensure_db_file(self.data_dir)
         with closing(initialize(self.db_path)) as conn:
-            self.config = AppConfig.from_settings(get_settings(conn))
+            settings = get_settings(conn)
+            self.config = AppConfig.from_settings(settings)
             save_settings(conn, self.config.as_settings())
             conn.commit()
         if dry_run_override is not None:
@@ -99,6 +115,8 @@ class GolemApplication:
         self.watcher: PollingWatcher | None = None
         self._watcher_thread: threading.Thread | None = None
         self._hotkey_listener: object | None = None
+        self._hotkeys_started = False
+        self._runtime_started = False
         self._scan_lock = threading.Lock()
         self._undo_lock = threading.Lock()
         self.tray = TrayController(
@@ -113,7 +131,12 @@ class GolemApplication:
                 on_reset=lambda: self._confirm_reset(),
                 on_check_updates=lambda: self._open_path(_RELEASES_URL),
                 on_toggle_watcher=lambda: self._toggle_watcher(),
+                on_toggle_autostart=lambda: self._toggle_autostart(),
+                on_about=self._show_about,
                 on_quit=lambda: self.enqueue({"action": "quit"}),
+                dry_run=False,
+                paused=False,
+                autostart_enabled=self.config.autostart_enabled,
             )
         )
         self.error_queue: Queue[str] = Queue()
@@ -123,13 +146,36 @@ class GolemApplication:
         self._status_error_until: float = 0.0
         self._index_worker = threading.Thread(target=self._index_worker_loop, name="golem-index-worker", daemon=True)
         self._index_worker.start()
+        self._crash_marker = self.data_dir / ".golem_running"
+        self._check_db_health()
+        self._index_ops_since_optimize = 0
+        # Periodic maintenance: WAL checkpoint every 5 min
+        self._maintenance_timer_id = self.ui.root.after(300_000, self._run_maintenance)
         self.ui.root.after(100, self._pump_commands)
         self.ui.root.after(250, self._pump_progress)
         self.ui.root.after(500, self._pump_errors)
 
     @contextmanager
     def _connection(self):
-        with closing(connect(self.db_path)) as conn:
+        """Get a database connection with retry on lock.
+
+        Uses exponential backoff (100ms, 200ms, 400ms) so a transient
+        SQLITE_BUSY from a concurrent writer does not propagate to the
+        caller. After 3 failures the exception is re-raised.
+        """
+        delays = [0.1, 0.2, 0.4]
+        for attempt, delay in enumerate(delays, start=1):
+            try:
+                conn = connect(self.db_path)
+            except sqlite3.OperationalError as exc:
+                if "locked" in str(exc).lower() and attempt < len(delays):
+                    logging.warning("DB locked (attempt %d/3); retrying in %.1fs", attempt, delay)
+                    time.sleep(delay)
+                    continue
+                raise
+            else:
+                break
+        with closing(conn):
             yield conn
 
     def ensure_ready(self) -> bool:
@@ -155,6 +201,7 @@ class GolemApplication:
             conn.commit()
         self.ui.set_status("Settings saved")
         self.restart_watcher()
+        self._start_runtime_components()
         self.enqueue({"action": "scan"})
 
     def enqueue(self, command: dict) -> None:
@@ -195,12 +242,15 @@ class GolemApplication:
                     logging.info("Dry-run set to %s", self.config.dry_run)
                 elif action == "settings":
                     self.ui.show_onboarding()
+                elif action == "about":
+                    self._show_about()
                 elif action == "reset":
                     self._reset_all()
                 elif action == "quit":
-                    self.stop_watcher()
-                    self.tray.stop()
-                    self.ui.root.quit()
+                    # Fade the main window out gracefully, then do the
+                    # actual teardown. Skipped under reduced motion
+                    # (handled inside fade_out_then_shutdown).
+                    self._begin_quit()
             except Exception as exc:
                 logging.exception("Command failed: %s", exc)
         self.ui.root.after(100, self._pump_commands)
@@ -272,6 +322,14 @@ class GolemApplication:
         logging.info("All settings and index wiped; restarting onboarding")
         self.ui.show_onboarding()
 
+    def _start_runtime_components(self) -> None:
+        if self._runtime_started:
+            return
+        self._runtime_started = True
+        self.start_watcher()
+        self._start_hotkeys()
+        self.tray.start()
+
     def _scan(self) -> None:
         try:
             self.tray.set_busy(True)
@@ -294,6 +352,13 @@ class GolemApplication:
                 "Scan complete: %d processed, %d skipped, %d errors",
                 result.processed, result.skipped, result.errors,
             )
+            # Run FTS optimize after a large scan
+            if result.processed > 100:
+                try:
+                    with self._connection() as conn:
+                        optimize_fts(conn)
+                except Exception:
+                    pass
             self.tray.notify(
                 "GOLEM scan complete",
                 f"Indexed {result.processed} file(s), skipped {result.skipped}, errors {result.errors}.",
@@ -317,10 +382,23 @@ class GolemApplication:
             try:
                 path.resolve().relative_to(watched.resolve())
             except ValueError:
+                logging.warning("Path %s is not inside watched folder %s; skipping", path, watched)
+                return
+            # Safety: reject excessive file sizes (> 500 MB) to prevent
+            # memory exhaustion from text extraction. Cache stat result
+            # to avoid double syscall.
+            try:
+                st = path.stat()
+            except OSError as exc:
+                logging.warning("Could not stat %s: %s; skipping", path, exc)
+                return
+            if st.st_size > 500 * 1024 * 1024:
+                logging.warning("File %s is too large (%d MB); skipping index", path, st.st_size // (1024 * 1024))
                 return
             with self._connection() as conn:
                 from .scanner import index_one_file
                 index_one_file(conn, path, vault, self.summarizer, dry_run=self.config.dry_run, log=logging.info)
+            self._index_ops_since_optimize += 1
         except Exception as exc:
             logging.exception("Watcher index error for %s: %s", path, exc)
 
@@ -421,8 +499,51 @@ class GolemApplication:
             return
         self.enqueue({"action": "reset"})
 
+    def _show_about(self) -> None:
+        """Display the About GOLEM dialog."""
+        try:
+            from tkinter import messagebox
+            messagebox.showinfo(
+                "About GOLEM",
+                f"{APP_NAME} {APP_VERSION}\n\n"
+                "A local-first AI file manager for Obsidian.\n\n"
+                f"Data directory: {self.data_dir}\n"
+                f"Python: {sys.version}\n"
+                f"Platform: {sys.platform}\n\n"
+                "MIT License - GOLEM Contributors",
+            )
+        except Exception:
+            pass
+
+    def _toggle_autostart(self) -> None:
+        """Toggle whether GOLEM launches at system startup.
+
+        This runs the actual OS-level registration and updates the
+        setting in the database.
+        """
+        self.config.autostart_enabled = not self.config.autostart_enabled
+        if self.config.autostart_enabled:
+            try:
+                install_autostart()
+            except Exception as exc:
+                self.error_queue.put(f"Autostart installation failed: {exc}")
+                self.config.autostart_enabled = False
+        else:
+            try:
+                remove_autostart()
+            except Exception as exc:
+                self.error_queue.put(f"Autostart removal failed: {exc}")
+                self.config.autostart_enabled = True
+        # Persist
+        with self._connection() as conn:
+            save_settings(conn, self.config.as_settings())
+            conn.commit()
+        self.tray.callbacks.autostart_enabled = self.config.autostart_enabled
+
     def _toggle_watcher(self) -> None:
         self.config.watch_enabled = not self.config.watch_enabled
+        self.tray.callbacks.paused = not self.config.watch_enabled
+        self.tray.set_paused_icon(not self.config.watch_enabled)
         with self._connection() as conn:
             save_settings(conn, self.config.as_settings())
             conn.commit()
@@ -460,28 +581,166 @@ class GolemApplication:
     def _handle_watcher_event(self, path: Path) -> None:
         self.enqueue({"action": "index_file", "path": str(path)})
 
+    def _begin_quit(self) -> None:
+        """Begin a graceful quit: fade the main window out, then shutdown.
+
+        Idempotent — calling it twice is safe; the second call will
+        no-op because ``shutdown()`` itself is idempotent and the
+        animation's cancel path also re-invokes shutdown, with a
+        one-shot guard preventing double ``root.quit()``.
+        """
+        try:
+            from .ui_anim import fade_out_then_shutdown
+        except Exception:
+            # If the animation module can't import for any reason, fall
+            # back to the direct path so quit still works.
+            self.shutdown()
+            try:
+                self.ui.root.quit()
+            except Exception:
+                _LOG.exception("root.quit failed during fallback quit")
+            return
+        try:
+            fade_out_then_shutdown(
+                self.ui.root,
+                shutdown=self.shutdown,
+                quit_after=self.ui.root.quit,
+            )
+        except Exception:
+            # Animation is best-effort; the actual teardown must still run.
+            _LOG.exception("fade_out_then_shutdown failed; falling back to direct quit")
+            self.shutdown()
+            try:
+                self.ui.root.quit()
+            except Exception:
+                _LOG.exception("root.quit failed during fallback quit")
+
     def shutdown(self) -> None:
         """Stop the watcher, the index worker, and the tray.
 
         Called from the quit path. Idempotent.
         """
         self._index_stop.set()
-        # Best-effort wake the worker in case it's blocked on get(timeout=...).
+        # Drain the index queue: send sentinel until accepted, then wait
+        # for the worker to finish processing the current item.
+        for _ in range(10):
+            try:
+                self.index_queue.put_nowait(None)  # type: ignore[arg-type]
+                break
+            except queue.Full:
+                # Drain one item to make room, then retry.
+                try:
+                    self.index_queue.get_nowait()
+                except queue.Empty:
+                    pass
+        self._index_worker.join(timeout=5.0)
+        # Write clean-shutdown marker
         try:
-            self.index_queue.put_nowait(None)  # type: ignore[arg-type]
-        except queue.Full:
+            self._crash_marker.unlink(missing_ok=True)
+        except OSError:
+            pass
+        # Backup on clean shutdown
+        try:
+            with self._connection() as conn:
+                checkpoint_wal(conn, "TRUNCATE")
+        except Exception:
+            pass
+        try:
+            backup_database(self.data_dir)
+        except Exception:
             pass
         self.stop_watcher()
         self.tray.stop()
+        # Cancel periodic maintenance
+        if hasattr(self, '_maintenance_timer_id') and self._maintenance_timer_id:
+            try:
+                self.ui.root.after_cancel(self._maintenance_timer_id)
+            except Exception:
+                pass
+
+    def _check_db_health(self) -> None:
+        """Check database integrity, restore from backup if needed,
+        and detect unclean shutdowns.
+        """
+        # Detect previous crash
+        if self._crash_marker.exists():
+            logging.warning("Previous session did not shut down cleanly; checking DB integrity")
+            self.error_queue.put("Previous session crashed. Checking database integrity...")
+        else:
+            logging.info("Previous session shut down cleanly")
+        # Write running marker
+        try:
+            self._crash_marker.touch(exist_ok=True)
+        except OSError:
+            pass
+
+        # Backup before we do anything
+        try:
+            backup_database(self.data_dir)
+        except Exception:
+            pass
+
+        # Check integrity
+        try:
+            with self._connection() as conn:
+                ok, msg = check_integrity(conn)
+                if not ok:
+                    logging.error("Database integrity check FAILED: %s", msg)
+                    self.error_queue.put(
+                        f"Database integrity issue detected. Attempting backup restore..."
+                    )
+                    # Try to restore from backup
+                    restored = restore_from_backup(self.data_dir)
+                    if restored:
+                        logging.info("Restored database from backup; re-checking integrity")
+                        # Re-open and check again
+                        with self._connection() as conn:
+                            ok2, msg2 = check_integrity(conn)
+                            if not ok2:
+                                logging.error("Restored database also has integrity issues: %s", msg2)
+                                self.error_queue.put(
+                                    "Database could not be repaired. Use 'Reset all settings' from the tray menu."
+                                )
+                            else:
+                                logging.info("Restored database integrity check passed")
+                                self.error_queue.put(
+                                    "Database was restored from a backup. No data was lost."
+                                )
+                    else:
+                        logging.error("No usable backup found; database may be corrupt")
+                        self.error_queue.put(
+                            "Database could not be repaired. Use 'Reset all settings' from the tray menu."
+                        )
+                else:
+                    logging.info("Database integrity check passed")
+        except Exception as exc:
+            logging.exception("Health check failed: %s", exc)
+
+    def _run_maintenance(self) -> None:
+        """Periodic DB maintenance: WAL checkpoint and FTS optimize."""
+        try:
+            with self._connection() as conn:
+                checkpoint_wal(conn, "PASSIVE")
+        except Exception:
+            pass
+        # If we've done a lot of indexing since last optimize, run it
+        if self._index_ops_since_optimize >= 500:
+            try:
+                with self._connection() as conn:
+                    optimize_fts(conn)
+                self._index_ops_since_optimize = 0
+                logging.info("FTS optimized after %d index ops", self._index_ops_since_optimize)
+            except Exception:
+                pass
+        # Reschedule
+        self._maintenance_timer_id = self.ui.root.after(300_000, self._run_maintenance)
 
     def run(self) -> int:
         if not self.ensure_ready():
             self.ui.run()
             self.shutdown()
             return 0
-        self.start_watcher()
-        self._start_hotkeys()
-        self.tray.start()
+        self._start_runtime_components()
         self.enqueue({"action": "scan"})
         try:
             self.ui.run()
@@ -490,6 +749,8 @@ class GolemApplication:
         return 0
 
     def _start_hotkeys(self) -> None:
+        if self._hotkeys_started:
+            return
         if self._hotkey_listener == "disabled":
             logging.info("Hotkeys disabled by CLI flag")
             return
@@ -498,6 +759,7 @@ class GolemApplication:
 
             keyboard.add_hotkey("ctrl+shift+space", lambda: self.enqueue({"action": "show_popup"}))
             self._hotkey_listener = keyboard
+            self._hotkeys_started = True
             logging.info("Registered keyboard hotkey (ctrl+shift+space)")
             return
         except Exception:
@@ -512,9 +774,130 @@ class GolemApplication:
             hotkey = pynput_keyboard.GlobalHotKeys({"<ctrl>+<shift>+<space>": on_activate})
             hotkey.start()
             self._hotkey_listener = hotkey
+            self._hotkeys_started = True
             logging.info("Registered pynput hotkey (ctrl+shift+space)")
         except Exception as exc:
             logging.info("Hotkey registration unavailable: %s", exc)
+
+
+def install_autostart() -> None:
+    """Register GOLEM to launch at system startup.
+
+    Uses the appropriate mechanism per platform:
+    - Windows: Start Menu Startup folder shortcut
+    - macOS: LaunchAgents plist
+    - Linux: autostart .desktop file
+    """
+    try:
+        if sys.platform.startswith("win"):
+            _install_autostart_windows()
+        elif sys.platform == "darwin":
+            _install_autostart_macos()
+        else:
+            _install_autostart_linux()
+        logging.info("Autostart installed")
+    except Exception as exc:
+        logging.error("Failed to install autostart: %s", exc)
+        raise
+
+
+def remove_autostart() -> None:
+    """Remove the system startup registration for GOLEM."""
+    try:
+        if sys.platform.startswith("win"):
+            _remove_autostart_windows()
+        elif sys.platform == "darwin":
+            _remove_autostart_macos()
+        else:
+            _remove_autostart_linux()
+        logging.info("Autostart removed")
+    except Exception as exc:
+        logging.error("Failed to remove autostart: %s", exc)
+        raise
+
+
+def _install_autostart_windows() -> None:
+    """Create a shortcut in the Windows Startup folder."""
+    startup = Path(os.getenv("APPDATA", "")) / "Microsoft" / "Windows" / "Start Menu" / "Programs" / "Startup"
+    startup.mkdir(parents=True, exist_ok=True)
+    target = sys.executable if getattr(sys, "frozen", False) else sys.executable
+    args = "" if getattr(sys, "frozen", False) else " -m golem"
+    shortcut_path = startup / "GOLEM.lnk"
+    try:
+        import win32com.client
+        shell = win32com.client.Dispatch("WScript.Shell")
+        shortcut = shell.CreateShortCut(str(shortcut_path))
+        shortcut.TargetPath = target
+        shortcut.Arguments = args
+        shortcut.WorkingDirectory = str(Path(target).parent)
+        shortcut.Save()
+    except Exception:
+        # Fallback: write a .bat file
+        (startup / "GOLEM.bat").write_text(
+            f'@start "" "{target}" {args}' + '\n',
+            encoding="utf-8",
+        )
+
+
+def _remove_autostart_windows() -> None:
+    startup = Path(os.getenv("APPDATA", "")) / "Microsoft" / "Windows" / "Start Menu" / "Programs" / "Startup"
+    for name in ("GOLEM.lnk", "GOLEM.bat"):
+        (startup / name).unlink(missing_ok=True)
+
+
+def _install_autostart_macos() -> None:
+    """Create a LaunchAgent plist for GOLEM."""
+    launch_agents = Path.home() / "Library" / "LaunchAgents"
+    launch_agents.mkdir(parents=True, exist_ok=True)
+    target = sys.executable if getattr(sys, "frozen", False) else "/usr/local/bin/golem"
+    plist = launch_agents / "com.golem.desktop.plist"
+    plist.write_text(f"""<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>Label</key>
+    <string>com.golem.desktop</string>
+    <key>ProgramArguments</key>
+    <array>
+        <string>{target}</string>
+    </array>
+    <key>RunAtLoad</key>
+    <true/>
+    <key>KeepAlive</key>
+    <false/>
+</dict>
+</plist>
+""", encoding="utf-8")
+    import subprocess
+    subprocess.run(["launchctl", "load", str(plist)], capture_output=True, timeout=10)
+
+
+def _remove_autostart_macos() -> None:
+    plist = Path.home() / "Library" / "LaunchAgents" / "com.golem.desktop.plist"
+    if plist.exists():
+        import subprocess
+        subprocess.run(["launchctl", "unload", str(plist)], capture_output=True, timeout=10)
+        plist.unlink(missing_ok=True)
+
+
+def _install_autostart_linux() -> None:
+    """Create a .desktop file in ~/.config/autostart."""
+    autostart = Path.home() / ".config" / "autostart"
+    autostart.mkdir(parents=True, exist_ok=True)
+    target = sys.executable if getattr(sys, "frozen", False) else sys.executable
+    desktop = autostart / "golem.desktop"
+    desktop.write_text(f"""[Desktop Entry]
+Type=Application
+Name=GOLEM
+Exec={target}
+Terminal=false
+X-GNOME-Autostart-enabled=true
+""", encoding="utf-8")
+
+
+def _remove_autostart_linux() -> None:
+    desktop = Path.home() / ".config" / "autostart" / "golem.desktop"
+    desktop.unlink(missing_ok=True)
 
 
 def _show_fatal_error(message: str) -> None:
@@ -587,6 +970,7 @@ def run(args: object | None = None) -> int:
     saved config where applicable.
     """
     log_level = "INFO"
+    data_dir: Path | None = None
     no_tray = False
     no_watcher = False
     no_hotkey = False
@@ -597,6 +981,9 @@ def run(args: object | None = None) -> int:
 
     if args is not None:
         log_level = getattr(args, "log_level", "INFO")
+        data_dir_raw = getattr(args, "data_dir", None)
+        if data_dir_raw:
+            data_dir = Path(data_dir_raw).expanduser()
         no_tray = getattr(args, "no_tray", False)
         no_watcher = getattr(args, "no_watcher", False)
         no_hotkey = getattr(args, "no_hotkey", False)
@@ -612,9 +999,10 @@ def run(args: object | None = None) -> int:
         print(_version_string())
         return 0
 
-    configure_logging(level=log_level)
+    configure_logging(level=log_level, data_dir=data_dir)
 
-    db_path = ensure_db_file(default_data_dir())
+    db_root = data_dir or default_data_dir()
+    db_path = ensure_db_file(db_root)
 
     if export_path is not None:
         return _export_db(db_path, export_path)
@@ -625,7 +1013,7 @@ def run(args: object | None = None) -> int:
             return rc
 
     try:
-        app = GolemApplication(dry_run_override=dry_run_override)
+        app = GolemApplication(data_dir=db_root, dry_run_override=dry_run_override)
     except Exception as exc:
         _show_fatal_error(str(exc))
         return 1

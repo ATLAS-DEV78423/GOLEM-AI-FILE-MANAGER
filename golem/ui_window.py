@@ -19,7 +19,7 @@ import os
 import sys
 import tkinter as tk
 from dataclasses import dataclass
-from typing import Iterable, Sequence
+from typing import Callable, Iterable, Sequence
 
 
 _LOG = logging.getLogger(__name__)
@@ -330,7 +330,7 @@ def strip_window_chrome(window: tk.Toplevel, *, hide_titlebar: bool = True) -> N
         pass
 
 
-def attach_focus_out(window: tk.Toplevel, on_focus_out: callable) -> None:  # type: ignore[valid-type]
+def attach_focus_out(window: tk.Toplevel, on_focus_out: Callable[[], None]) -> None:
     """Hide the window when it loses focus. The classic Spotlight /
     Raycast UX: click outside → palette closes."""
     def _watch(_event=None):

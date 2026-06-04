@@ -11,6 +11,7 @@ from golem.extractor import extract_text
 from golem.legal import terms_of_service_text
 from golem.indexer import FileRecord, get_settings, initialize, save_settings, search_files, transaction, upsert_file
 from golem.scanner import index_one_file
+from golem.search import SearchResponse, SearchResult
 from golem.summarizer import HeuristicSummarizer, build_summarizer, provider_choices
 from golem.vault_writer import archive_orphan_note, write_note
 from installer import _ps_single_quoted
@@ -149,7 +150,9 @@ class CoreTests(unittest.TestCase):
         with sqlite3.connect(db_path) as conn2:
             raw_value = conn2.execute("SELECT value FROM settings WHERE key = 'groq_api_key'").fetchone()[0]
         self.assertNotEqual(raw_value, "super-secret-key")
-        self.assertTrue(str(raw_value).startswith("dpapi:"))
+        self.assertTrue(str(raw_value).startswith("dpapi:") or str(raw_value).startswith("nekrypt:"),
+            f"Expected dpapi: or nekrypt: prefix, got: {raw_value[:30]}..."
+        )
         settings = get_settings(conn)
         self.assertEqual(settings["groq_api_key"], "super-secret-key")
         self.assertEqual(settings["llm_api_key"], "super-secret-key")
@@ -203,6 +206,30 @@ class CoreTests(unittest.TestCase):
         # Empty / whitespace queries
         self.assertEqual(search_files(conn, ""), [])
         self.assertEqual(search_files(conn, "   "), [])
+
+    def test_search_response_payload_handles_slots(self) -> None:
+        response = SearchResponse(
+            status="ok",
+            results=[
+                SearchResult(
+                    id=1,
+                    original_filename="alpha.txt",
+                    clean_filename="Alpha",
+                    original_path="C:/tmp/alpha.txt",
+                    current_path="C:/tmp/alpha.txt",
+                    summary="alpha",
+                    tags="alpha",
+                    key_contents="alpha",
+                    category="Other",
+                    obsidian_note_path="",
+                    index_status="done",
+                    confidence=0.9,
+                    rank=0.1,
+                )
+            ],
+        )
+        payload = response.to_payload()
+        self.assertEqual(payload["results"][0]["clean_filename"], "Alpha")
 
     def test_full_hash_detects_distinct_files(self) -> None:
         """Files that share a prefix but differ in the middle must not collide."""
