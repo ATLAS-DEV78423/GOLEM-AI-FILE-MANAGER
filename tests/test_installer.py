@@ -54,7 +54,8 @@ class InstallerTests(unittest.TestCase):
             self.assertTrue((install_dir / "GOLEM.exe").exists())
             self.assertTrue((install_dir / "_internal" / "data.txt").exists())
             self.assertTrue((install_dir / "install-manifest.json").exists())
-            self.assertEqual(Path(manifest["install_dir"]), install_dir)
+            # Resolve paths to handle macOS symlink normalization (/var vs /private/var)
+            self.assertEqual(Path(manifest["install_dir"]).resolve(), install_dir.resolve())
 
             result = installer.uninstall_app(install_dir)
             self.assertEqual(result["status"], "ok")
