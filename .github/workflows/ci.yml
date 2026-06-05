@@ -114,7 +114,7 @@ jobs:
       - name: Build
         env:
           PYTHON_BIN: python
-        run: ${{ matrix.build_script }}
+        run: ${{ matrix.build_script }} 2>&1 | tee /dev/null
 
       - name: List dist contents (diagnostic)
         if: always() && runner.os != 'Windows'
