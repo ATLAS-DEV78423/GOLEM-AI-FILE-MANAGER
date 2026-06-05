@@ -93,6 +93,16 @@ class PollingWatcher:
     def _should_track(self, path: Path) -> bool:
         if not path.is_file():
             return False
+        # Symlinks and reparse points (e.g. NTFS junctions) can point at
+        # arbitrary locations outside the watched folder, including system
+        # directories. Refuse to track them so a forged symlink cannot cause
+        # the indexer to read or move files outside the watch root.
+        try:
+            if path.is_symlink():
+                return False
+        except OSError as exc:
+            logging.debug("Symlink check failed for %s: %s; skipping", path, exc)
+            return False
         if any(is_hidden_or_system_dir(part) or part in SYSTEM_SKIP_DIRS for part in path.parts):
             return False
         return True
@@ -139,7 +149,9 @@ class PollingWatcher:
             # Sleep with a small granularity so ``stop`` is responsive.
             end = time.monotonic() + self.interval
             while not self._stop.is_set() and time.monotonic() < end:
-                time.sleep(min(0.2, end - time.monotonic()))
+                remaining = end - time.monotonic()
+                if remaining > 0:
+                    time.sleep(min(0.2, remaining))
 
     def _run_worker(self) -> None:
         while True:

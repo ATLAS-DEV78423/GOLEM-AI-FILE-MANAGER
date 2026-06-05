@@ -31,3 +31,10 @@ Thumbs.db
 # Local dev artifacts
 awesome-claude-code/
 obsidian_graphify_custom/
+node_modules
+.ci-venv/
+my-project/
+package.json
+package-lock.json
+.mcp.json
+nul

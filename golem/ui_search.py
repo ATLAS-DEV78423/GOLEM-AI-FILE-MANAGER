@@ -24,6 +24,8 @@ Interaction
 - ``↑`` / ``↓`` / ``Home`` / ``End`` to navigate
 - ``Return`` to open the highlighted result
 - ``Cmd+Return`` (or ``Ctrl+Return``) to reveal in Explorer
+- ``Delete`` to delete the highlighted result (calls ``on_delete``)
+- ``Ctrl+Z`` / ``Ctrl+Shift+Z`` to undo the last action (calls ``on_undo``)
 - ``Escape`` to hide
 - Click outside the popup to hide (the parent window handles this)
 """
@@ -69,6 +71,8 @@ class SearchPopup:
         on_open: Callable[[str], None],
         on_reveal: Callable[[str], None],
         on_settings: Callable[[], None] | None = None,
+        on_delete: Callable[[str], None] | None = None,
+        on_undo: Callable[[], None] | None = None,
         config: SearchPopupConfig | None = None,
     ):
         self.root = root
@@ -76,6 +80,8 @@ class SearchPopup:
         self._on_open = on_open
         self._on_reveal_callback = on_reveal
         self._on_settings_callback = on_settings
+        self._on_delete_callback = on_delete
+        self._on_undo_callback = on_undo
         self.config = config or SearchPopupConfig()
         self.window: tk.Toplevel | None = None
         self._query: tk.Entry | None = None

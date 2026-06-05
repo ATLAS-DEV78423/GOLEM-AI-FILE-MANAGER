@@ -42,6 +42,50 @@ _LOG = logging.getLogger(__name__)
 _RELEASES_URL = "https://github.com/ATLAS-DEV78423/GOLEM-AI-FILE-MANAGER/releases"
 
 
+def _is_within(child: Path, parent: Path) -> bool:
+    try:
+        child.relative_to(parent)
+        return True
+    except ValueError:
+        return False
+
+
+def _validate_open_path(raw: str, config) -> Path:
+    """Validate a path string before handing it to the OS shell.
+
+    Rejects: NUL bytes, URI schemes (file:, http:, https:, shell:, ms-cxh:,
+    ms-settings:, and any colon-containing scheme), and paths that don't
+    resolve under a configured vault_folder or watched_folder.
+    Returns the resolved pathlib.Path.
+    Raises ValueError with a safe message on rejection.
+    """
+    if not isinstance(raw, str) or not raw.strip():
+        raise ValueError("empty path")
+    if "\x00" in raw:
+        raise ValueError("path contains NUL byte")
+    # Reject URI schemes: anything matching <scheme>:<rest> where scheme has a colon
+    lower = raw.lstrip().lower()
+    if "://" in lower or lower.startswith(("file:", "http:", "https:", "shell:", "ms-cxh:", "ms-settings:")):
+        raise ValueError("path uses a URI scheme")
+    p = Path(raw)
+    try:
+        resolved = p.resolve(strict=False)
+    except OSError as e:
+        raise ValueError(f"cannot resolve path: {e}") from e
+    roots: list[Path] = []
+    for name in ("vault_folder", "watched_folder"):
+        root = getattr(config, name, None)
+        if root:
+            try:
+                roots.append(Path(root).resolve(strict=False))
+            except OSError:
+                continue
+    if roots:
+        if not any(_is_within(resolved, r) for r in roots):
+            raise ValueError("path is outside configured folders")
+    return resolved
+
+
 def configure_logging(level: str = "INFO", data_dir: Path | None = None) -> None:
     """Configure root logging.
 
@@ -443,7 +487,12 @@ class GolemApplication:
             return search_with_fallback(conn, query, self.summarizer, self.config.confidence_threshold).to_payload()
 
     def _open_file(self, path: str) -> None:
-        self._open_path(Path(path))
+        try:
+            validated = _validate_open_path(path, self.config)
+        except ValueError as exc:
+            logging.getLogger(__name__).warning("rejected unsafe open path: %s", exc)
+            return
+        self._open_path(validated)
 
     def _open_path(self, path: Path | str) -> None:
         """Open a file or URL with the OS's default handler.
@@ -455,21 +504,27 @@ class GolemApplication:
         try:
             target = str(path)
             if sys.platform.startswith("win"):
-                os.startfile(target)
+                os.startfile(target)  # noqa: S606
             elif sys.platform == "darwin":
-                subprocess.Popen(["open", target])
+                subprocess.Popen(["open", target])  # noqa: S603
             else:
-                subprocess.Popen(["xdg-open", target])
+                subprocess.Popen(["xdg-open", target])  # noqa: S603
         except OSError as exc:
             logging.warning("Could not open %s: %s", path, exc)
 
     def _reveal_in_explorer(self, path: str) -> None:
+        try:
+            validated = _validate_open_path(path, self.config)
+        except ValueError as exc:
+            logging.getLogger(__name__).warning("rejected unsafe reveal path: %s", exc)
+            return
+        path = str(validated)
         if sys.platform.startswith("win"):
-            subprocess.Popen(["explorer", "/select,", path])
+            subprocess.Popen(["explorer", "/select,", path])  # noqa: S603
         elif sys.platform == "darwin":
-            subprocess.Popen(["open", "-R", path])
+            subprocess.Popen(["open", "-R", path])  # noqa: S603
         else:
-            subprocess.Popen(["xdg-open", str(Path(path).parent)])
+            subprocess.Popen(["xdg-open", str(validated.parent)])  # noqa: S603
 
     def _confirm_reset(self) -> None:
         """Ask the user to confirm wiping all settings + index.

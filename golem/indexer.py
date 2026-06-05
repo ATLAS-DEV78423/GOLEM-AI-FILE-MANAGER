@@ -45,9 +45,7 @@ class _DATA_BLOB(ctypes.Structure):
 
 
 def _is_windows() -> bool:
-    import sys
-
-    return sys.platform.startswith("win")
+    return sys.platform == "win32"
 
 
 def _blob_from_bytes(data: bytes) -> _DATA_BLOB:
@@ -76,7 +74,7 @@ def _machine_secret() -> bytes:
     # Hostname
     parts.append(os.uname().nodename if hasattr(os, "uname") else os.getenv("COMPUTERNAME", "unknown"))
     # OS install UUID
-    if _is_windows():
+    if sys.platform == "win32":
         try:
             import winreg
 
@@ -127,6 +125,8 @@ def _get_fernet_key() -> bytes:
 
 def _protect_dpapi(value: str) -> str:
     """Encrypt value with Windows DPAPI."""
+    if sys.platform != "win32":
+        raise RuntimeError("DPAPI is only available on Windows")
 
     crypt32 = ctypes.windll.crypt32
     kernel32 = ctypes.windll.kernel32
@@ -143,6 +143,8 @@ def _protect_dpapi(value: str) -> str:
 
 def _unprotect_dpapi(value: str) -> str:
     """Decrypt value with Windows DPAPI."""
+    if sys.platform != "win32":
+        raise RuntimeError("DPAPI is only available on Windows")
 
     payload = value[len(_SECRET_PREFIX):]
     payload_bytes = base64.b64decode(payload.encode("ascii"))

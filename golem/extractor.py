@@ -21,6 +21,38 @@ MAX_EXTRACT_PAGES = 10
 # Office document. 1 MB is well above anything the LLM provider will
 # read anyway (the user_prompt uses text_excerpt(..., 300)).
 _MAX_EXTRACT_CHARS = 1_000_000
+# Zip-bomb guard. The DOCX/XLSX zip/XML fallback reads entries into memory
+# before the _MAX_EXTRACT_CHARS budget is checked; without this guard a
+# 4 GB zip entry that decompresses to a multi-GB XML would be loaded in
+# full. 64 MB is well above the _MAX_EXTRACT_CHARS (1 MB) text budget
+# while still bounding memory.
+MAX_UNCOMPRESSED_ENTRY = 64 * 1024 * 1024  # 64 MB
+
+
+def _read_zip_entry(zf: zipfile.ZipFile, name: str) -> bytes | None:
+    """Read a zip entry, enforcing a per-entry uncompressed size cap.
+
+    The DOCX/XLSX zip/XML fallback path used to call ``zf.read(name)`` with
+    no size check, so a crafted archive with a multi-GB uncompressed entry
+    would be fully decompressed into memory before ``_MAX_EXTRACT_CHARS``
+    was even consulted. This guard inspects the entry's declared
+    uncompressed size first and skips the entry with a warning when it
+    exceeds the cap. Returns ``None`` for skipped entries so the caller
+    can continue with whatever it has.
+    """
+    try:
+        info = zf.getinfo(name)
+    except KeyError:
+        return None
+    if info.file_size > MAX_UNCOMPRESSED_ENTRY:
+        logging.getLogger(__name__).warning(
+            "skipping zip entry %s: uncompressed size %d exceeds %d bytes",
+            name,
+            info.file_size,
+            MAX_UNCOMPRESSED_ENTRY,
+        )
+        return None
+    return zf.read(name)
 
 
 def _check_size(path: Path) -> bool:
