@@ -14,18 +14,22 @@ def _normalize_path(p: str) -> str:
     On Windows the filesystem is case-insensitive, so "C:\\Foo\\bar.txt"
     and "c:\\foo\\BAR.txt" refer to the same file. We also collapse
     forward and backward slashes because LLMs are inconsistent about
-    which they use when returning paths. On POSIX we only normalize
-    separators; case is preserved.
-    
-    However, when comparing LLM-returned paths (which may be Windows paths
-    on any platform), we normalize case for Windows-style paths to ensure
-    consistent matching across all platforms.
+    which they use when returning paths.
+
+    On case-sensitive filesystems (Linux) we still casefold paths that
+    look like Windows paths (contain a drive-letter prefix like "C:/"),
+    because LLMs may return Windows-format paths regardless of the host
+    platform.
     """
     if not p:
         return ""
     s = str(p).replace("\\", "/")
-    # Casefold on Windows/macOS filesystems, or if the path looks like a Windows path
-    if sys.platform.startswith("win") or sys.platform == "darwin" or s.startswith("C:") or s.startswith("c:"):
+    # Casefold on case-insensitive filesystems (Windows, macOS).
+    # Also casefold Windows-style paths (drive-letter prefix) that LLMs
+    # may return regardless of the host platform (e.g., on Linux CI).
+    if sys.platform.startswith("win") or sys.platform == "darwin" or (
+        len(s) >= 2 and s[1] == ":" and s[0].isalpha()
+    ):
         s = s.casefold()
     return s.rstrip("/")
 

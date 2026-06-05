@@ -67,21 +67,21 @@ jobs:
               dist/GOLEM-Setup*.exe
           - os: macos-latest
             arch: x86_64
-            build_script: GOLEM_ARCH=x86_64 ./build_macos.sh
+            build_script: GOLEM_ARCH=x86_64 bash ./build_macos.sh
             artifact_name: macos-x86_64
             upload_pattern: |
               dist/GOLEM.app/*
               dist/GOLEM-macOS-x86_64.dmg
           - os: macos-latest
             arch: arm64
-            build_script: GOLEM_ARCH=arm64 ./build_macos.sh
+            build_script: GOLEM_ARCH=arm64 bash ./build_macos.sh
             artifact_name: macos-arm64
             upload_pattern: |
               dist/GOLEM.app/*
               dist/GOLEM-macOS-arm64.dmg
           - os: ubuntu-latest
             arch: x86_64
-            build_script: GOLEM_ARCH=x86_64 ./build_linux_installer.sh
+            build_script: GOLEM_ARCH=x86_64 bash ./build_linux_installer.sh
             artifact_name: linux-x86_64
             upload_pattern: |
               dist/GOLEM-*-linux-x86_64.tar.gz

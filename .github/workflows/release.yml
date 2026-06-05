@@ -89,7 +89,7 @@ jobs:
           pip install -r requirements-build.txt
 
       - name: Build macOS release artifacts (x86_64)
-        run: GOLEM_ARCH=x86_64 ./build_macos.sh
+        run: GOLEM_ARCH=x86_64 bash ./build_macos.sh
 
       - name: Upload macOS x86_64 artifacts
         uses: actions/upload-artifact@v4
@@ -127,7 +127,7 @@ jobs:
           pip install -r requirements-build.txt
 
       - name: Build macOS release artifacts (arm64)
-        run: GOLEM_ARCH=arm64 ./build_macos.sh
+        run: GOLEM_ARCH=arm64 bash ./build_macos.sh
 
       - name: Upload macOS arm64 artifacts
         uses: actions/upload-artifact@v4
@@ -170,7 +170,7 @@ jobs:
           sudo apt-get install -y dpkg-dev fakeroot
 
       - name: Build Linux release artifacts (x86_64)
-        run: GOLEM_ARCH=x86_64 ./build_linux_installer.sh
+        run: GOLEM_ARCH=x86_64 bash ./build_linux_installer.sh
 
       - name: Upload Linux x86_64 artifacts
         uses: actions/upload-artifact@v4
@@ -218,7 +218,7 @@ jobs:
           sudo apt-get install -y dpkg-dev fakeroot
 
       - name: Build Linux release artifacts (aarch64)
-        run: GOLEM_ARCH=aarch64 ./build_linux_installer.sh
+        run: GOLEM_ARCH=aarch64 bash ./build_linux_installer.sh
 
       - name: Upload Linux aarch64 artifacts
         uses: actions/upload-artifact@v4
