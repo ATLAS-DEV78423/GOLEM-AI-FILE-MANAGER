@@ -111,10 +111,30 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y dpkg-dev fakeroot
 
+      - name: Diagnose environment
+        if: runner.os != 'Windows'
+        run: |
+          echo "=== Python ==="
+          which python || echo "python: NOT FOUND"
+          echo "---"
+          python --version
+          echo "=== PyInstaller ==="
+          python -m PyInstaller --version || echo "PyInstaller: NOT AVAILABLE via python"
+          echo "=== PATH ==="
+          echo "$PATH" | tr ':' '\n'
+
       - name: Build
         env:
           PYTHON_BIN: python
-        run: ${{ matrix.build_script }}
+        run: |
+          ${{ matrix.build_script }} 2>&1 | tee "${{ runner.temp }}/build-output.log"
+
+      - name: Upload build log (always)
+        if: failure() && runner.os != 'Windows'
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.artifact_name }}-build-log
+          path: ${{ runner.temp }}/build-output.log
 
       - name: Upload artifacts
         uses: actions/upload-artifact@v4
