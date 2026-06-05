@@ -103,6 +103,7 @@ jobs:
           python -m pip install --upgrade pip
           pip install -r requirements.txt
           pip install -r requirements-build.txt
+          pip install -e .
 
       - name: Install Linux build deps
         if: matrix.os == 'ubuntu-latest'
@@ -111,6 +112,8 @@ jobs:
           sudo apt-get install -y dpkg-dev fakeroot
 
       - name: Build
+        env:
+          PYTHON_BIN: python
         run: ${{ matrix.build_script }}
 
       - name: Upload artifacts

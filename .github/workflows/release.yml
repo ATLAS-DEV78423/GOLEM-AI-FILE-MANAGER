@@ -84,11 +84,13 @@ jobs:
 
       - name: Install dependencies
         run: |
-          python3 -m pip install --upgrade pip
+          python -m pip install --upgrade pip
           pip install -r requirements.txt
           pip install -r requirements-build.txt
 
       - name: Build macOS release artifacts (x86_64)
+        env:
+          PYTHON_BIN: python
         run: GOLEM_ARCH=x86_64 bash ./build_macos.sh
 
       - name: Upload macOS x86_64 artifacts
@@ -122,11 +124,13 @@ jobs:
 
       - name: Install dependencies
         run: |
-          python3 -m pip install --upgrade pip
+          python -m pip install --upgrade pip
           pip install -r requirements.txt
           pip install -r requirements-build.txt
 
       - name: Build macOS release artifacts (arm64)
+        env:
+          PYTHON_BIN: python
         run: GOLEM_ARCH=arm64 bash ./build_macos.sh
 
       - name: Upload macOS arm64 artifacts
@@ -160,7 +164,7 @@ jobs:
 
       - name: Install dependencies
         run: |
-          python3 -m pip install --upgrade pip
+          python -m pip install --upgrade pip
           pip install -r requirements.txt
           pip install -r requirements-build.txt
 
@@ -170,6 +174,8 @@ jobs:
           sudo apt-get install -y dpkg-dev fakeroot
 
       - name: Build Linux release artifacts (x86_64)
+        env:
+          PYTHON_BIN: python
         run: GOLEM_ARCH=x86_64 bash ./build_linux_installer.sh
 
       - name: Upload Linux x86_64 artifacts
@@ -208,7 +214,7 @@ jobs:
 
       - name: Install dependencies
         run: |
-          python3 -m pip install --upgrade pip
+          python -m pip install --upgrade pip
           pip install -r requirements.txt
           pip install -r requirements-build.txt
 
@@ -218,6 +224,8 @@ jobs:
           sudo apt-get install -y dpkg-dev fakeroot
 
       - name: Build Linux release artifacts (aarch64)
+        env:
+          PYTHON_BIN: python
         run: GOLEM_ARCH=aarch64 bash ./build_linux_installer.sh
 
       - name: Upload Linux aarch64 artifacts
