@@ -119,8 +119,21 @@ jobs:
       - name: List dist contents (diagnostic)
         if: always() && runner.os != 'Windows'
         run: |
-          echo "=== dist/ contents ==="
-          ls -laR dist/ 2>/dev/null || echo "dist/ not found or empty"
+          if [[ -d dist ]]; then
+            echo "=== dist/ top-level ==="
+            ls -la dist/
+            echo "--- subdirectories ---"
+            for d in dist/*/; do
+              if [[ -d "$d" ]]; then
+                echo "=== $d ==="
+                ls -la "$d" 2>/dev/null | head -20
+              fi
+            done
+            echo "--- dist/ total size ---"
+            du -sh dist/ 2>/dev/null || echo ""
+          else
+            echo "dist/ directory not found or not created"
+          fi
 
       - name: Upload artifacts
         uses: actions/upload-artifact@v4
