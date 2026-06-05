@@ -16,12 +16,16 @@ def _normalize_path(p: str) -> str:
     forward and backward slashes because LLMs are inconsistent about
     which they use when returning paths. On POSIX we only normalize
     separators; case is preserved.
+    
+    However, when comparing LLM-returned paths (which may be Windows paths
+    on any platform), we normalize case for Windows-style paths to ensure
+    consistent matching across all platforms.
     """
     if not p:
         return ""
     s = str(p).replace("\\", "/")
-    if sys.platform.startswith("win") or sys.platform == "darwin":
-        # macOS HFS+/APFS is case-insensitive by default.
+    # Casefold on Windows/macOS filesystems, or if the path looks like a Windows path
+    if sys.platform.startswith("win") or sys.platform == "darwin" or s.startswith("C:") or s.startswith("c:"):
         s = s.casefold()
     return s.rstrip("/")
 
