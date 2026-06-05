@@ -111,37 +111,23 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y dpkg-dev fakeroot
 
-      - name: Diagnose environment
-        if: runner.os != 'Windows'
-        run: |
-          echo "=== Python ==="
-          which python || echo "python: NOT FOUND"
-          echo "---"
-          python --version
-          echo "=== PyInstaller ==="
-          python -m PyInstaller --version || echo "PyInstaller: NOT AVAILABLE via python"
-          echo "=== PATH ==="
-          echo "$PATH" | tr ':' '\n'
-
       - name: Build
         env:
           PYTHON_BIN: python
-        run: |
-          ${{ matrix.build_script }} 2>&1 | tee "${{ runner.temp }}/build-output.log"
+        run: ${{ matrix.build_script }}
 
-      - name: Upload build log (always)
-        if: failure() && runner.os != 'Windows'
-        uses: actions/upload-artifact@v4
-        with:
-          name: ${{ matrix.artifact_name }}-build-log
-          path: ${{ runner.temp }}/build-output.log
+      - name: List dist contents (diagnostic)
+        if: always() && runner.os != 'Windows'
+        run: |
+          echo "=== dist/ contents ==="
+          ls -laR dist/ 2>/dev/null || echo "dist/ not found or empty"
 
       - name: Upload artifacts
         uses: actions/upload-artifact@v4
         with:
           name: ${{ matrix.artifact_name }}-${{ github.sha }}
           path: ${{ matrix.upload_pattern }}
-          if-no-files-found: warn
+          if-no-files-found: error
 
   smoke:
     name: smoke (${{ matrix.arch }})
