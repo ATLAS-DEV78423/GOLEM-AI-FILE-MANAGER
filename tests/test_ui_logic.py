@@ -260,19 +260,15 @@ def test_parse_hex_6_digit() -> None:
 # ---------------------------------------------------------------------------
 
 
-def test_search_to_row_primary() -> None:
-    """The _to_row mapping should use clean_filename when present."""
-    # We can't call _to_row without a real popup instance (it touches
-    # self), so we replicate the logic here and assert via the
-    # SearchPopup class attributes. This is a brittle test; if the
-    # implementation changes, update the test.
+def test_search_dicts_to_results() -> None:
+    """The _dicts_to_results mapping should use clean_filename when present."""
     import inspect
 
     from golem.ui_search import SearchPopup
-    src = inspect.getsource(SearchPopup._to_row)
-    # Must reference the documented keys
-    for key in ("clean_filename", "original_filename", "summary", "category", "confidence", "current_path", "original_path"):
-        assert key in src, f"_to_row missing {key!r}"
+    src = inspect.getsource(SearchPopup._dicts_to_results)
+    # Must reference the documented backend keys
+    for key in ("clean_filename", "original_filename", "chunk_text", "summary", "current_path", "original_path"):
+        assert key in src, f"_dicts_to_results missing {key!r}"
 
 
 # ---------------------------------------------------------------------------

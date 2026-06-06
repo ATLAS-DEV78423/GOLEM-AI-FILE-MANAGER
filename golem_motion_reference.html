@@ -1,0 +1,509 @@
+
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600&family=JetBrains+Mono:wght@400;500&display=swap');
+*{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --bg:#080808;--surface:#0f0f0f;--search-bg:#161616;--hover:#161616;
+  --orange:#f97316;--orange-glow:rgba(249,115,22,0.12);
+  --text:#e8e4df;--muted:#5c5650;--dim:#3d3a38;--ghost:#2a2825;
+  --border:rgba(249,115,22,0.22);--divider:rgba(255,255,255,0.04);
+  --font:'Outfit',sans-serif;--mono:'JetBrains Mono',monospace;
+}
+body{background:var(--bg);font-family:var(--font);-webkit-font-smoothing:antialiased}
+.shell{min-height:900px;display:flex;flex-direction:column;align-items:center;gap:32px;padding:32px 24px}
+
+/* ── SECTION HEADERS ── */
+.sec{width:620px;margin-bottom:-16px}
+.sec-title{font-family:var(--mono);font-size:10px;letter-spacing:0.16em;text-transform:uppercase;color:var(--orange);opacity:0.7;margin-bottom:4px}
+.sec-desc{font-size:12px;color:var(--muted);line-height:1.5}
+
+/* ── LAUNCHER SHELL ── */
+.launcher{
+  width:620px;background:var(--surface);border-radius:18px;
+  border:1px solid var(--border);overflow:hidden;
+  box-shadow:0 0 0 1px rgba(0,0,0,0.8),0 32px 80px rgba(0,0,0,0.9);
+}
+
+/* ── SEARCH BOX ── */
+.search-area{padding:6px 6px 0}
+.search-box{
+  display:flex;align-items:center;gap:10px;
+  background:var(--search-bg);border:1.5px solid var(--orange);
+  border-radius:13px;padding:0 16px;height:56px;
+  box-shadow:0 0 0 4px var(--orange-glow);
+  transition:box-shadow 0.25s ease;
+}
+.search-box:hover{box-shadow:0 0 0 6px rgba(249,115,22,0.16)}
+.s-icon{flex-shrink:0}
+.s-icon svg{width:18px;height:18px;stroke:var(--orange);stroke-width:2.2;fill:none;stroke-linecap:round;stroke-linejoin:round}
+.s-input{flex:1;background:none;border:none;outline:none;color:var(--text);font-size:15px;font-family:var(--font);font-weight:400;caret-color:var(--orange)}
+.s-input::placeholder{color:#3a3632;font-weight:300}
+.esc{background:#1e1e1e;border:1px solid #2a2a2a;border-radius:5px;padding:3px 8px;font-size:11px;font-family:var(--mono);color:var(--ghost)}
+
+/* ── FILTERS ── */
+.filters{display:flex;gap:4px;padding:10px 8px 8px}
+.tf{
+  padding:4px 11px;border-radius:20px;font-size:11px;font-family:var(--mono);
+  font-weight:500;letter-spacing:0.08em;text-transform:uppercase;cursor:pointer;
+  border:1px solid transparent;color:var(--dim);background:transparent;
+  transition:background 0.15s ease,border-color 0.15s ease,color 0.15s ease,transform 0.1s ease;
+  user-select:none;
+}
+.tf.on{background:rgba(249,115,22,0.12);border-color:rgba(249,115,22,0.30);color:var(--orange)}
+.tf:hover:not(.on){color:var(--muted);border-color:#222}
+.tf:active{transform:scale(0.94)}
+
+/* ── RESULTS ── */
+.results{padding:0 6px 6px;max-height:360px;overflow-y:auto}
+.results::-webkit-scrollbar{width:4px}
+.results::-webkit-scrollbar-thumb{background:rgba(249,115,22,0.18);border-radius:2px}
+.slabel{font-family:var(--mono);font-size:10px;font-weight:500;letter-spacing:0.16em;text-transform:uppercase;color:var(--orange);opacity:.7;padding:10px 10px 5px}
+.divider{height:1px;background:var(--divider);margin:4px 10px}
+
+/* ── ITEM ── */
+.item{
+  display:flex;align-items:center;gap:12px;padding:9px 10px;
+  border-radius:10px;cursor:pointer;margin-bottom:1px;
+  transition:background 0.1s ease,transform 0.12s cubic-bezier(0.34,1.56,0.64,1);
+  transform-origin:center left;
+  opacity:0;
+  animation:itemIn 180ms cubic-bezier(0.22,1,0.36,1) forwards;
+}
+.item:nth-child(1){animation-delay:30ms}
+.item:nth-child(2){animation-delay:60ms}
+.item:nth-child(3){animation-delay:90ms}
+.item:nth-child(4){animation-delay:120ms}
+.item:nth-child(5){animation-delay:150ms}
+@keyframes itemIn{
+  from{opacity:0;transform:translateX(-6px) translateY(3px)}
+  to{opacity:1;transform:translateX(0) translateY(0)}
+}
+.item:hover{background:var(--hover)}
+.item:active{transform:scale(0.99)}
+.item.sel{background:var(--orange)}
+
+/* icon */
+.ico{
+  width:32px;height:32px;border-radius:8px;
+  background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.07);
+  display:flex;align-items:center;justify-content:center;
+  flex-shrink:0;font-size:14px;
+  transition:background 0.1s ease,border-color 0.1s ease,transform 0.15s cubic-bezier(0.34,1.56,0.64,1);
+}
+.item:hover .ico{transform:scale(1.08)}
+.item.sel .ico{background:rgba(255,255,255,0.18);border-color:rgba(255,255,255,0.25);transform:scale(1)}
+
+/* body */
+.ibody{flex:1;min-width:0}
+.iname{font-size:13.5px;font-weight:500;color:#e8e4df;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin-bottom:2px;transition:color 0.1s ease}
+.item.sel .iname{color:#fff}
+.iname mark{background:none;color:var(--orange);font-weight:600}
+.item.sel .iname mark{color:#fff;font-weight:700}
+.imeta{font-size:11px;font-family:var(--mono);color:var(--dim);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin-bottom:3px;transition:color 0.1s ease}
+.item.sel .imeta{color:rgba(255,255,255,0.5)}
+.isnip{font-size:12px;color:var(--muted);line-height:1.45;overflow:hidden;display:-webkit-box;-webkit-line-clamp:1;-webkit-box-orient:vertical;transition:color 0.1s ease}
+.item.sel .isnip{color:rgba(255,255,255,0.65)}
+.isnip mark{background:none;color:var(--orange);font-weight:500}
+.item.sel .isnip mark{color:#fff;font-weight:600}
+
+/* pill */
+.pill{
+  font-family:var(--mono);font-size:9.5px;font-weight:500;
+  letter-spacing:0.07em;text-transform:uppercase;
+  padding:3px 8px;border-radius:20px;border:1px solid;
+  white-space:nowrap;flex-shrink:0;align-self:center;
+  transition:background 0.1s ease,color 0.1s ease,border-color 0.1s ease,transform 0.15s cubic-bezier(0.34,1.56,0.64,1);
+}
+.item:hover .pill{transform:scale(1.05)}
+.item.sel .pill{transform:scale(1)}
+.pill.sem{background:rgba(139,92,246,0.1);color:#9b72ff;border-color:rgba(139,92,246,0.22)}
+.pill.kw{background:rgba(249,115,22,0.1);color:var(--orange);border-color:rgba(249,115,22,0.25)}
+.pill.both{background:rgba(20,184,166,0.1);color:#2dd4bf;border-color:rgba(20,184,166,0.22)}
+.pill.ent{background:rgba(251,191,36,0.1);color:#fbbf24;border-color:rgba(251,191,36,0.2)}
+.item.sel .pill{background:rgba(255,255,255,0.18);color:#fff;border-color:rgba(255,255,255,0.35)}
+
+/* ── FOOTER ── */
+.footer{height:34px;border-top:1px solid var(--divider);display:flex;align-items:center;justify-content:space-between;padding:0 14px}
+.fdot{width:5px;height:5px;border-radius:50%;background:#22c55e;box-shadow:0 0 5px rgba(34,197,94,0.6);animation:pulse 2.5s ease-in-out infinite}
+@keyframes pulse{0%,100%{box-shadow:0 0 5px rgba(34,197,94,0.6)}50%{box-shadow:0 0 10px rgba(34,197,94,0.9),0 0 20px rgba(34,197,94,0.3)}}
+.fl{display:flex;align-items:center;gap:6px;font-family:var(--mono);font-size:10.5px;color:var(--ghost)}
+.fr{font-family:var(--mono);font-size:10.5px;color:var(--ghost)}
+.kh{background:#161616;border:1px solid #222;border-radius:3px;padding:1px 5px;font-size:10px;font-family:var(--mono)}
+
+/* ── MOTION DEMO PANELS ── */
+.demo-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px;width:620px}
+.demo-card{
+  background:var(--surface);border:1px solid rgba(255,255,255,0.06);
+  border-radius:14px;padding:16px;
+}
+.demo-card-title{font-family:var(--mono);font-size:10px;letter-spacing:0.12em;text-transform:uppercase;color:var(--orange);opacity:0.7;margin-bottom:12px}
+
+/* Skeleton loader */
+.skel{border-radius:5px;background:#1a1a1a;position:relative;overflow:hidden}
+.skel::after{
+  content:'';position:absolute;inset:0;
+  background:linear-gradient(90deg,transparent 0%,rgba(255,255,255,0.04) 50%,transparent 100%);
+  animation:shimmer 1.6s ease-in-out infinite;
+  background-size:200% 100%;
+}
+@keyframes shimmer{0%{background-position:200% 0}100%{background-position:-200% 0}}
+.skel-row{display:flex;align-items:center;gap:8px;margin-bottom:10px}
+.skel-row:last-child{margin-bottom:0}
+.skel-ico{width:28px;height:28px;border-radius:6px;flex-shrink:0}
+.skel-lines{flex:1;display:flex;flex-direction:column;gap:5px}
+.skel-a{height:10px;border-radius:3px}
+.skel-b{height:8px;border-radius:3px;width:65%}
+.skel-pill{width:56px;height:18px;border-radius:10px;flex-shrink:0}
+
+/* Typing cursor */
+.typing-demo{font-size:14px;color:var(--text);font-family:var(--font);font-weight:400;min-height:22px}
+.cursor{display:inline-block;width:2px;height:14px;background:var(--orange);margin-left:1px;vertical-align:middle;animation:blink 1s step-end infinite}
+@keyframes blink{0%,100%{opacity:1}50%{opacity:0}}
+
+/* Glow pulse on search */
+.glow-demo .search-box{
+  animation:glowPulse 3s ease-in-out infinite;
+}
+@keyframes glowPulse{
+  0%,100%{box-shadow:0 0 0 4px rgba(249,115,22,0.10)}
+  50%{box-shadow:0 0 0 7px rgba(249,115,22,0.18),0 0 30px rgba(249,115,22,0.06)}
+}
+
+/* Hover lift demo */
+.lift-item{
+  display:flex;align-items:center;gap:10px;padding:8px 10px;
+  border-radius:10px;background:transparent;cursor:pointer;margin-bottom:4px;
+  transition:background 0.1s ease,transform 0.15s cubic-bezier(0.34,1.56,0.64,1),box-shadow 0.15s ease;
+}
+.lift-item:hover{
+  background:rgba(255,255,255,0.04);
+  transform:translateY(-1px);
+  box-shadow:0 4px 16px rgba(0,0,0,0.4);
+}
+.lift-item:active{transform:translateY(0) scale(0.99)}
+.lift-ico{width:28px;height:28px;border-radius:7px;background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.07);display:flex;align-items:center;justify-content:center;font-size:13px;transition:transform 0.15s cubic-bezier(0.34,1.56,0.64,1)}
+.lift-item:hover .lift-ico{transform:scale(1.1) rotate(-3deg)}
+.lift-name{font-size:13px;font-weight:500;color:var(--text)}
+.lift-meta{font-size:11px;font-family:var(--mono);color:var(--dim)}
+
+/* Selection slide */
+.sel-demo-item{
+  display:flex;align-items:center;gap:10px;padding:8px 10px;
+  border-radius:10px;cursor:pointer;margin-bottom:3px;position:relative;overflow:hidden;
+  transition:color 0.12s ease;
+}
+.sel-bg{
+  position:absolute;inset:0;border-radius:10px;
+  background:var(--orange);
+  transform:scaleX(0);transform-origin:left center;
+  transition:transform 0.18s cubic-bezier(0.22,1,0.36,1);
+}
+.sel-demo-item.on .sel-bg{transform:scaleX(1)}
+.sel-content{position:relative;z-index:1;display:flex;align-items:center;gap:10px;width:100%}
+.sel-demo-item.on .lift-name{color:#fff}
+.sel-demo-item.on .lift-meta{color:rgba(255,255,255,0.5)}
+
+/* Pill bounce */
+.pill-row{display:flex;gap:6px;flex-wrap:wrap}
+.pb{
+  font-family:var(--mono);font-size:10px;font-weight:500;letter-spacing:0.07em;text-transform:uppercase;
+  padding:4px 10px;border-radius:20px;border:1px solid;cursor:pointer;
+  transition:transform 0.2s cubic-bezier(0.34,1.56,0.64,1),opacity 0.15s ease,filter 0.15s ease;
+}
+.pb:hover{transform:scale(1.1) translateY(-2px)}
+.pb:active{transform:scale(0.93)}
+.pb.p1{background:rgba(249,115,22,0.12);color:var(--orange);border-color:rgba(249,115,22,0.3)}
+.pb.p2{background:rgba(139,92,246,0.1);color:#9b72ff;border-color:rgba(139,92,246,0.25)}
+.pb.p3{background:rgba(20,184,166,0.1);color:#2dd4bf;border-color:rgba(20,184,166,0.25)}
+.pb.p4{background:rgba(251,191,36,0.1);color:#fbbf24;border-color:rgba(251,191,36,0.22)}
+.pb.active-pill{transform:scale(0.96);filter:brightness(1.3)}
+
+/* Status dot transitions */
+.dot-row{display:flex;gap:16px;align-items:center}
+.dot-wrap{display:flex;align-items:center;gap:7px;cursor:pointer}
+.sdot{width:7px;height:7px;border-radius:50%;transition:transform 0.2s cubic-bezier(0.34,1.56,0.64,1),box-shadow 0.3s ease}
+.sdot.green{background:#22c55e;box-shadow:0 0 6px rgba(34,197,94,0.6);animation:gpulse 2.5s ease-in-out infinite}
+.sdot.amber{background:#f59e0b;box-shadow:0 0 6px rgba(245,158,11,0.5);animation:apulse 1.2s ease-in-out infinite}
+.sdot.red{background:#ef4444;box-shadow:0 0 6px rgba(239,68,68,0.5)}
+@keyframes gpulse{0%,100%{box-shadow:0 0 6px rgba(34,197,94,0.6)}50%{box-shadow:0 0 12px rgba(34,197,94,0.9),0 0 20px rgba(34,197,94,0.3)}}
+@keyframes apulse{0%,100%{transform:scale(1)}50%{transform:scale(1.3)}}
+.dot-label{font-family:var(--mono);font-size:11px;color:var(--muted)}
+
+/* ESC badge shake */
+.esc-demo{
+  background:#1e1e1e;border:1px solid #2a2a2a;border-radius:5px;
+  padding:5px 12px;font-size:12px;font-family:var(--mono);color:var(--muted);
+  cursor:pointer;display:inline-block;
+  transition:border-color 0.15s ease,color 0.15s ease;
+}
+.esc-demo:hover{border-color:rgba(249,115,22,0.3);color:var(--orange)}
+.esc-demo.shake{animation:shake 0.35s cubic-bezier(0.36,0.07,0.19,0.97)}
+@keyframes shake{0%,100%{transform:translateX(0)}20%{transform:translateX(-4px)}40%{transform:translateX(4px)}60%{transform:translateX(-3px)}80%{transform:translateX(3px)}}
+</style>
+
+<div class="shell">
+
+<!-- ══ MAIN LAUNCHER (ANIMATED) ══ -->
+<div class="sec">
+  <div class="sec-title">01 — Window launch animation</div>
+  <div class="sec-desc">130ms scale-up from 0.97 + Y offset fade. Cubic-bezier(0.16,1,0.3,1) — fast out, no bounce.</div>
+</div>
+
+<div class="launcher" id="mainLauncher" style="animation:launchIn 130ms cubic-bezier(0.16,1,0.3,1) both">
+<style>@keyframes launchIn{from{opacity:0;transform:scale(0.97) translateY(-5px)}to{opacity:1;transform:none}}</style>
+
+  <div class="search-area glow-demo">
+    <div class="search-box">
+      <div class="s-icon"><svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg></div>
+      <div class="s-input" style="flex:1;color:var(--text);font-size:15px;font-family:var(--font)">
+        <span id="typedText"></span><span class="cursor"></span>
+      </div>
+      <div class="esc">ESC</div>
+    </div>
+  </div>
+
+  <div class="filters">
+    <div class="tf on" onclick="setF(this,'all')">All</div>
+    <div class="tf" onclick="setF(this,'file')">Files</div>
+    <div class="tf" onclick="setF(this,'video')">Videos</div>
+    <div class="tf" onclick="setF(this,'note')">Notes</div>
+    <div class="tf" onclick="setF(this,'audio')">Audio</div>
+  </div>
+
+  <div class="results" id="results">
+    <div class="slabel">Top matches</div>
+    <div class="item sel" onclick="pick(this)">
+      <div class="ico">📄</div>
+      <div class="ibody">
+        <div class="iname"><mark>Pricing</mark> Strategy Q3 2024.pdf</div>
+        <div class="imeta">~/Documents/Business/ · 3 days ago</div>
+        <div class="isnip">Value metric <mark>pricing</mark> outperforms seat-based by 3x…</div>
+      </div>
+      <div class="pill both">keyword + semantic</div>
+    </div>
+    <div class="item" onclick="pick(this)">
+      <div class="ico">🎬</div>
+      <div class="ibody">
+        <div class="iname">How to Price SaaS — Patrick Campbell</div>
+        <div class="imeta">YouTube · 12 days ago · 14:32</div>
+        <div class="isnip">Value metric framework separates scale from plateau…</div>
+      </div>
+      <div class="pill sem">semantic</div>
+    </div>
+    <div class="item" onclick="pick(this)">
+      <div class="ico">📝</div>
+      <div class="ibody">
+        <div class="iname">Meeting with Tariq — March.md</div>
+        <div class="imeta">~/Notes/Meetings/ · 2 weeks ago</div>
+        <div class="isnip">Tariq mentioned the value metric framework again…</div>
+      </div>
+      <div class="pill ent">via entity</div>
+    </div>
+    <div class="divider"></div>
+    <div class="slabel">Also related</div>
+    <div class="item" onclick="pick(this)">
+      <div class="ico">📊</div>
+      <div class="ibody">
+        <div class="iname">Competitor Analysis Jan 2024.xlsx</div>
+        <div class="imeta">~/Documents/Research/ · 5 months ago</div>
+        <div class="isnip">Linear, Notion, Figma <mark>pricing</mark> tier breakdown…</div>
+      </div>
+      <div class="pill kw">keyword</div>
+    </div>
+    <div class="item" onclick="pick(this)">
+      <div class="ico">🎙️</div>
+      <div class="ibody">
+        <div class="iname">Voice memo — freemium thoughts.m4a</div>
+        <div class="imeta">~/Voice Memos/ · 3 weeks ago · transcribed</div>
+        <div class="isnip">…freemium trains users to expect value for free…</div>
+      </div>
+      <div class="pill sem">semantic</div>
+    </div>
+  </div>
+
+  <div class="footer">
+    <div class="fl"><div class="fdot"></div>4,218 files · indexed just now</div>
+    <div class="fr"><span class="kh">↑↓</span> navigate · <span class="kh">↵</span> open · <span class="kh">ESC</span> close</div>
+  </div>
+</div>
+
+<!-- ══ DEMO GRID ══ -->
+<div class="sec">
+  <div class="sec-title">02 — Micro-interaction demos</div>
+  <div class="sec-desc">Click and hover each panel to feel the interactions live.</div>
+</div>
+
+<div class="demo-grid">
+
+  <!-- Skeleton loader -->
+  <div class="demo-card">
+    <div class="demo-card-title">Skeleton loader · results incoming</div>
+    <div class="skel-row"><div class="skel skel-ico"></div><div class="skel-lines"><div class="skel skel-a" style="width:80%"></div><div class="skel skel-b"></div></div><div class="skel skel-pill"></div></div>
+    <div class="skel-row"><div class="skel skel-ico"></div><div class="skel-lines"><div class="skel skel-a" style="width:60%"></div><div class="skel skel-b" style="width:45%"></div></div><div class="skel skel-pill"></div></div>
+    <div class="skel-row"><div class="skel skel-ico"></div><div class="skel-lines"><div class="skel skel-a" style="width:75%"></div><div class="skel skel-b" style="width:55%"></div></div><div class="skel skel-pill"></div></div>
+  </div>
+
+  <!-- Icon hover bounce -->
+  <div class="demo-card">
+    <div class="demo-card-title">Icon hover · spring bounce + rotate</div>
+    <div class="lift-item"><div class="lift-ico">📄</div><div><div class="lift-name">Pricing Strategy.pdf</div><div class="lift-meta">~/Documents/ · 3 days ago</div></div></div>
+    <div class="lift-item"><div class="lift-ico">🎬</div><div><div class="lift-name">SaaS Pricing Talk</div><div class="lift-meta">YouTube · 12 days ago</div></div></div>
+    <div class="lift-item"><div class="lift-ico">📝</div><div><div class="lift-name">Meeting with Tariq.md</div><div class="lift-meta">~/Notes/ · 2 weeks ago</div></div></div>
+  </div>
+
+  <!-- Selection wipe -->
+  <div class="demo-card">
+    <div class="demo-card-title">Selection · orange wipe from left</div>
+    <div class="sel-demo-item" onclick="selWipe(this)">
+      <div class="sel-bg"></div>
+      <div class="sel-content"><div class="lift-ico">📄</div><div><div class="lift-name">Pricing Strategy.pdf</div><div class="lift-meta">~/Documents/</div></div></div>
+    </div>
+    <div class="sel-demo-item on" onclick="selWipe(this)">
+      <div class="sel-bg"></div>
+      <div class="sel-content"><div class="lift-ico">🎬</div><div><div class="lift-name">SaaS Pricing Talk</div><div class="lift-meta">YouTube</div></div></div>
+    </div>
+    <div class="sel-demo-item" onclick="selWipe(this)">
+      <div class="sel-bg"></div>
+      <div class="sel-content"><div class="lift-ico">📝</div><div><div class="lift-name">Meeting with Tariq.md</div><div class="lift-meta">~/Notes/</div></div></div>
+    </div>
+  </div>
+
+  <!-- Pill interactions -->
+  <div class="demo-card">
+    <div class="demo-card-title">Match pills · spring scale on hover/click</div>
+    <div style="margin-bottom:16px">
+      <div style="font-size:11px;color:var(--dim);font-family:var(--mono);margin-bottom:8px">Hover to lift · click to activate</div>
+      <div class="pill-row">
+        <div class="pb p1" onclick="activePill(this)">keyword</div>
+        <div class="pb p2" onclick="activePill(this)">semantic</div>
+        <div class="pb p3" onclick="activePill(this)">both</div>
+        <div class="pb p4" onclick="activePill(this)">via entity</div>
+      </div>
+    </div>
+    <div style="font-size:11px;color:var(--dim);font-family:var(--mono);margin-bottom:8px">Filter pills — active state</div>
+    <div class="filters" style="padding:0">
+      <div class="tf on" onclick="setF(this)">All</div>
+      <div class="tf" onclick="setF(this)">Files</div>
+      <div class="tf" onclick="setF(this)">Videos</div>
+      <div class="tf" onclick="setF(this)">Notes</div>
+    </div>
+  </div>
+
+  <!-- Status dots -->
+  <div class="demo-card">
+    <div class="demo-card-title">Status dot · pulse animations</div>
+    <div class="dot-row">
+      <div class="dot-wrap"><div class="sdot green"></div><div class="dot-label">indexed · 4,218 files</div></div>
+    </div>
+    <div style="height:10px"></div>
+    <div class="dot-row">
+      <div class="dot-wrap"><div class="sdot amber"></div><div class="dot-label">indexing · 847 remaining</div></div>
+    </div>
+    <div style="height:10px"></div>
+    <div class="dot-row">
+      <div class="dot-wrap"><div class="sdot red"></div><div class="dot-label">error · check Ollama</div></div>
+    </div>
+  </div>
+
+  <!-- ESC / kbd interactions -->
+  <div class="demo-card">
+    <div class="demo-card-title">Keyboard badge · hover + shake on press</div>
+    <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:16px">
+      <div class="esc-demo" onclick="shakeIt(this)">ESC</div>
+      <div class="esc-demo" onclick="shakeIt(this)">↑↓</div>
+      <div class="esc-demo" onclick="shakeIt(this)">↵</div>
+      <div class="esc-demo" onclick="shakeIt(this)">⌘↵</div>
+    </div>
+    <div style="font-size:11px;color:var(--dim);font-family:var(--mono);line-height:1.7">
+      Hover → orange tint<br>
+      Click → shake pulse<br>
+      Press real keys → selection moves
+    </div>
+  </div>
+
+</div>
+
+<!-- ── Typing demo standalone ── -->
+<div class="sec">
+  <div class="sec-title">03 — Typing simulation</div>
+  <div class="sec-desc">Blinking orange caret. Results repopulate with staggered item animation every time query changes.</div>
+</div>
+
+<div class="launcher" style="padding-bottom:8px">
+  <div class="search-area">
+    <div class="search-box">
+      <div class="s-icon"><svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg></div>
+      <div style="flex:1;color:var(--text);font-size:15px;font-family:var(--font)">
+        <span id="t2"></span><span class="cursor"></span>
+      </div>
+      <div class="esc">ESC</div>
+    </div>
+  </div>
+  <div style="height:8px"></div>
+</div>
+
+</div>
+
+<script>
+function pick(el){document.querySelectorAll('#mainLauncher .item').forEach(i=>i.classList.remove('sel'));el.classList.add('sel')}
+function setF(el){document.querySelectorAll('.tf').forEach(f=>f.classList.remove('on'));el.classList.add('on')}
+function selWipe(el){document.querySelectorAll('.sel-demo-item').forEach(i=>i.classList.remove('on'));el.classList.add('on')}
+function activePill(el){
+  el.classList.add('active-pill');
+  setTimeout(()=>el.classList.remove('active-pill'),300);
+}
+function shakeIt(el){
+  el.classList.remove('shake');
+  void el.offsetWidth;
+  el.classList.add('shake');
+}
+
+// Typing simulation 1
+const phrases=['pricing strategy notes','meeting with Tariq about Q3','voice memo last Tuesday','youtube video on freemium SaaS'];
+let pi=0,ci=0,deleting=false;
+function typeLoop(){
+  const phrase=phrases[pi];
+  const el=document.getElementById('typedText');
+  if(!deleting){
+    el.textContent=phrase.slice(0,ci+1);
+    ci++;
+    if(ci===phrase.length){setTimeout(()=>{deleting=true;typeLoop()},1800);return}
+    setTimeout(typeLoop,55+Math.random()*35);
+  } else {
+    el.textContent=phrase.slice(0,ci-1);
+    ci--;
+    if(ci===0){deleting=false;pi=(pi+1)%phrases.length;setTimeout(typeLoop,400);return}
+    setTimeout(typeLoop,28);
+  }
+}
+setTimeout(typeLoop,800);
+
+// Typing simulation 2
+const p2=['meeting about pricing','voice memo on freemium','youtube SaaS growth talk'];
+let pi2=0,ci2=0,del2=false;
+function typeLoop2(){
+  const phrase=p2[pi2];
+  const el=document.getElementById('t2');
+  if(!del2){
+    el.textContent=phrase.slice(0,ci2+1);
+    ci2++;
+    if(ci2===phrase.length){setTimeout(()=>{del2=true;typeLoop2()},1600);return}
+    setTimeout(typeLoop2,60+Math.random()*30);
+  } else {
+    el.textContent=phrase.slice(0,ci2-1);
+    ci2--;
+    if(ci2===0){del2=false;pi2=(pi2+1)%p2.length;setTimeout(typeLoop2,350);return}
+    setTimeout(typeLoop2,25);
+  }
+}
+setTimeout(typeLoop2,1200);
+
+// Arrow key nav
+document.addEventListener('keydown',function(e){
+  const items=[...document.querySelectorAll('#mainLauncher .item')];
+  if(!items.length)return;
+  const cur=items.findIndex(i=>i.classList.contains('sel'));
+  if(e.key==='ArrowDown'){e.preventDefault();const nx=(cur+1)%items.length;items.forEach(i=>i.classList.remove('sel'));items[nx].classList.add('sel')}
+  if(e.key==='ArrowUp'){e.preventDefault();const pv=(cur-1+items.length)%items.length;items.forEach(i=>i.classList.remove('sel'));items[pv].classList.add('sel')}
+});
+</script>

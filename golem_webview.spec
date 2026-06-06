@@ -1,16 +1,22 @@
 # -*- mode: python ; coding: utf-8 -*-
 """
-PyInstaller spec for GOLEM v2.1 — WebView-based launcher.
+PyInstaller spec for the GOLEM WebView launcher.
 
-Targets golem_webview.py (the new PyWebView front-end) instead of the
-legacy main.py (Tkinter). The UI files in ``ui/`` are bundled as data.
+This builds the WebView-based front-end (the new v2.1 UI) as a
+standalone executable. The installer embeds this bundle as its payload.
+
+Usage::
+
+    pyinstaller golem_webview.spec --noconfirm --clean
+
+Requires: pywebview, keyboard, and all GOLEM dependencies.
 """
 from pathlib import Path
 
 block_cipher = None
 ROOT = Path(SPECPATH).resolve()
 
-# ── Bundle ui/ and assets/ directories ───────────────────────────
+# ── Collect all UI files (index.html, style.css, app.js) ────────
 datas = []
 for folder in ("ui", "assets"):
     folder_path = ROOT / folder
@@ -19,12 +25,12 @@ for folder in ("ui", "assets"):
 
 # ── Analysis ─────────────────────────────────────────────────────
 a = Analysis(
-    ["golem_webview.py"],                          # <-- v2.1 entry point
+    ["golem_webview.py"],
     pathex=[str(ROOT)],
     binaries=[],
     datas=datas,
     hiddenimports=[
-        # ── GOLEM core (all modules) ──
+        # ── GOLEM backend ──
         "golem",
         "golem.ai",
         "golem.app",
@@ -48,7 +54,7 @@ a = Analysis(
         "golem.watcher",
         "golem.watcher_events",
 
-        # ── PyWebView (new for v2.1) ──
+        # ── WebView ──
         "webview",
         "webview.platforms",
         "webview.platforms.win32_edge",
@@ -57,12 +63,12 @@ a = Analysis(
         "webview.platforms.gtk3",
         "webview.util",
 
-        # ── Hotkey backends ──
+        # ── Hotkey ──
         "keyboard",
         "pynput",
         "pynput.keyboard",
 
-        # ── Cryptography ──
+        # ── LLM Providers ──
         "cryptography",
         "cryptography.fernet",
         "cryptography.hazmat",
@@ -71,12 +77,6 @@ a = Analysis(
         "cffi",
         "cffi.api",
         "cffi.cparser",
-
-        # ── Tray (legacy, kept for packaging test) ──
-        "pystray",
-        "PIL",
-        "PIL.Image",
-        "PIL.ImageDraw",
 
         # ── File extraction ──
         "openpyxl",
@@ -94,6 +94,12 @@ a = Analysis(
         "ctypes",
         "ctypes.wintypes",
         "winreg",
+
+        # ── Sentence embeddings ──
+        "sentence_transformers",
+        "torch",
+        "torch.nn",
+        "transformers",
     ],
     hookspath=[],
     hooksconfig={},
@@ -101,6 +107,11 @@ a = Analysis(
     excludes=[],
     noarchive=False,
 )
+
+# ── Fix winreg conditional import ────────────────────────────────
+import importlib.util as _importlib_util
+if _importlib_util.find_spec("winreg") is not None:
+    a.hiddenimports.append("winreg")
 
 pyz = PYZ(a.pure, a.zipped_data, cipher=block_cipher)
 exe = EXE(

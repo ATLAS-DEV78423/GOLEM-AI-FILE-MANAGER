@@ -87,6 +87,7 @@ class StatusBarTests(unittest.TestCase):
         self.sb._text_var = MagicMock()
         self.sb._frame = MagicMock()
         self.sb._icon = MagicMock()
+        self.sb._dot = MagicMock()
         self.sb._frame.after.return_value = "after_123"
 
     def test_statusbar_dataclass_defaults(self) -> None:

@@ -32,12 +32,12 @@ from typing import Any, Literal
 
 @dataclass(frozen=True, slots=True)
 class _Bg:
-    canvas: str = "#0e0e0e"          # main background
-    panel: str = "#151515"           # cards, popup body, sidebar
-    elevated: str = "#1a1a1a"        # rows, list items, hovered cards
-    hover: str = "#1f1f1f"           # row hover
-    selected: str = "#242424"        # row selected
-    pressed: str = "#2a2a2a"         # pressed state
+    canvas: str = "#0a0a0a"          # near-black, deepest layer
+    panel: str = "#111111"           # launcher window surface
+    elevated: str = "#151515"        # subtle lift
+    hover: str = "#1a1a1a"           # item hover state
+    selected: str = "#f97316"        # solid orange selected (per spec)
+    pressed: str = "#ea580c"         # pressed state
     input: str = "#111111"           # text input fill
     overlay: str = "#080808"         # modal scrim
     titlebar: str = "#0a0a0a"        # window header strip
@@ -46,12 +46,12 @@ class _Bg:
 
 @dataclass(frozen=True, slots=True)
 class _Fg:
-    primary: str = "#e8e8e8"         # default body (slightly warm white)
-    secondary: str = "#a0a0a0"       # muted text
-    tertiary: str = "#606060"        # hints, labels
+    primary: str = "#f5f0eb"         # warm white (not pure white — per spec)
+    secondary: str = "#7a7370"       # metadata, paths, timestamps
+    tertiary: str = "#3d3a38"        # dividers, muted text
     disabled: str = "#404040"        # disabled
-    on_accent: str = "#0e0e0e"       # text on orange buttons
-    inverse: str = "#0e0e0b"         # dark text on light surface
+    on_accent: str = "#ffffff"       # white text on orange selected
+    inverse: str = "#0a0a0b"         # dark text on light surface
 
 
 @dataclass(frozen=True, slots=True)
@@ -61,18 +61,18 @@ class _Accent:
     hover: str = "#fb923c"           # lighter orange
     pressed: str = "#ea580c"         # deeper orange
     muted: str = "#431407"           # very dark orange (15% opacity bg)
-    glow: str = "#f9731633"           # 20% alpha for focus rings
+    glow: str = "#f9731626"           # 15% alpha for focus rings (hex)
     ring: str = "#f9731680"           # 50% alpha for focus ring borders
-    dim: str = "#2d1504"             # chip background, very subdued
+    dim: str = "#f9731680"            # subtle orange elements (50% alpha)
     glow_border: str = "#f97316"     # search bar focus glow match
 
 
 @dataclass(frozen=True, slots=True)
 class _Border:
-    subtle: str = "#222222"          # hairline divider
-    DEFAULT: str = "#2a2a2a"         # standard divider
-    strong: str = "#333333"          # emphasized divider
-    focus: str = "#f97316"           # focus ring (orange)
+    subtle: str = "#151515"           # internal dividers
+    DEFAULT: str = "#1a1a1a"          # standard divider
+    strong: str = "#222222"           # emphasized divider
+    focus: str = "#f97316"            # focus ring (orange)
 
 
 @dataclass(frozen=True, slots=True)
@@ -85,16 +85,6 @@ class _State:
     error_muted: str = "#2e0a0a"
     info: str = "#3b82f6"            # blue
     info_muted: str = "#0a1a2e"
-
-
-@dataclass(frozen=True, slots=True)
-class _MatchPill:
-    """Five 'why matched' pill colors for result cards."""
-    keyword: str = "#f97316"         # orange — exact keyword match
-    semantic: str = "#a855f7"        # purple — semantic vector match
-    both: str = "#14b8a6"            # teal — both keyword + semantic
-    entity: str = "#eab308"          # yellow — entity extraction match
-    temporal: str = "#ec4899"         # pink — temporal/recency match
 
 
 @dataclass(frozen=True, slots=True)
@@ -111,25 +101,13 @@ class _Category:
 
 
 @dataclass(frozen=True, slots=True)
-class _Sidebar:
-    """Sidebar panel colors."""
-    bg: str = "#121212"
-    header: str = "#1a1a1a"
-    item: str = "#181818"
-    item_hover: str = "#1e1e1e"
-    accent: str = "#f973161a"        # subtle orange bg for active items
-
-
-@dataclass(frozen=True, slots=True)
 class Colors:
     bg: _Bg = _Bg()
     fg: _Fg = _Fg()
     accent: _Accent = _Accent()
     border: _Border = _Border()
     state: _State = _State()
-    match_pill: _MatchPill = _MatchPill()  # why-matched pill palette
     category: _Category = _Category()
-    sidebar: _Sidebar = _Sidebar()
 
 
 # ---------------------------------------------------------------------------
@@ -251,6 +229,17 @@ class Shadows:
         _ShadowStep("#f9731633", 16, 0),
         _ShadowStep("#f973161a", 8, 0),
     )
+    card: tuple[_ShadowStep, ...] = (
+        _ShadowStep("#00000040", 12, 4),
+        _ShadowStep("#00000060", 4, 2),
+    )
+    card_hover: tuple[_ShadowStep, ...] = (
+        _ShadowStep("#f973161a", 16, 6),
+        _ShadowStep("#00000060", 8, 4),
+    )
+    surface: tuple[_ShadowStep, ...] = (
+        _ShadowStep("#00000030", 6, 2),
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -267,6 +256,22 @@ class IconSize:
     lg: int = 20
     xl: int = 24
     sidebar: int = 18
+
+
+# ---------------------------------------------------------------------------
+# Gradients — subtle overlay helpers
+# ---------------------------------------------------------------------------
+
+
+@dataclass(frozen=True, slots=True)
+class Gradient:
+    """Pre-defined gradient values for canvas-drawn overlays."""
+    accent_to_transparent: str = "#f97316"  # use with create_linear_gradient
+    panel_to_dark: str = "#151515"
+    elevated_to_dark: str = "#1a1a1a"
+
+
+# GRADIENT is reserved for future gradient overlay use
 
 
 # ---------------------------------------------------------------------------
@@ -290,17 +295,17 @@ class Z:
 
 @dataclass(frozen=True, slots=True)
 class Size:
-    row_height: int = 48               # taller cards for launcher feel
-    row_height_compact: int = 36
-    input_height: int = 40             # taller search bar
+    row_height: int = 56               # taller result items for launcher feel
+    row_height_compact: int = 44
+    input_height: int = 52             # search box height per spec
     button_height: int = 36
     button_height_sm: int = 28
     icon_button: int = 32
     titlebar_height: int = 36
-    statusbar_height: int = 26
-    search_popup_w: int = 720          # wider for sidebar
-    search_popup_h: int = 520
-    sidebar_w: int = 200               # right sidebar width
+    statusbar_height: int = 32         # footer bar height per spec
+    search_popup_w: int = 640          # fixed width per spec
+    search_popup_h: int = 560          # max height per spec
+    search_popup_min_h: int = 200
     onboarding_w: int = 640
     onboarding_h: int = 720
 
@@ -315,6 +320,7 @@ RADII = Radii()
 TYPOGRAPHY = Typography()
 MOTION = Motion()
 SHADOWS = Shadows()
+GRADIENT = Gradient()
 ICON_SIZE = IconSize()
 SIZE = Size()
 Z_LAYERS = Z()

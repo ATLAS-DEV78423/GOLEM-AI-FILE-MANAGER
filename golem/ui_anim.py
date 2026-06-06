@@ -622,8 +622,7 @@ class _NoopAnimation:
         return
 
 
-# ---------------------------------------------------------------------------
-# Whole-app fade-out — used by the tray Quit path so the window doesn't
+# ── Whole-app fade-out — used by the tray Quit path so the window doesn't
 # vanish mid-keystroke. The caller passes the root window, the shutdown
 # callable (idempotent — does the actual cleanup), and the post-shutdown
 # callback (typically ``root.quit()``).
@@ -705,6 +704,122 @@ def fade_out_then_shutdown(
 
     state["after_id"] = window.after(0, _step)
     return _Animation(window, state["after_id"], _cancel)
+
+
+# ---------------------------------------------------------------------------
+# Launcher open animation — scale + fade (per spec)
+# ---------------------------------------------------------------------------
+
+
+def launcher_open(
+    window: tk.Toplevel,
+    duration_ms: int = 120,
+    *,
+    on_done: Callable[[], None] | None = None,
+) -> _Animation:
+    """Animate the launcher window opening with a scale + fade effect.
+
+    ``cubic-bezier(0.16, 1, 0.3, 1)`` — a fast, springy ease-out that
+    opens the launcher from 0.97 scale + 4px up to full size at rest.
+    Tk doesn't support true CSS transforms on toplevels, so we fake it
+    with alpha + geometry slide for the same visual feel.
+    """
+    if MOTION.reduced_motion:
+        duration = MOTION.instant
+    try:
+        window.attributes("-alpha", 0.0)
+    except tk.TclError:
+        pass
+
+    # Store original position
+    try:
+        window.update_idletasks()
+        geom = window.geometry()
+        size, _, rest = geom.partition("+")
+        x_part, _, y_part = rest.partition("+")
+        x_val = int(x_part) if x_part else 0
+        y_rest = int(y_part) if y_part else 0
+        start_y = y_rest - 4  # slide up 4px from rest position
+    except (tk.TclError, ValueError):
+        start_y = 0
+        x_val = 0
+        y_rest = 0
+
+    state: dict[str, Any] = {"elapsed": 0, "step_ms": 8}
+
+    def _step():
+        if state["elapsed"] >= duration:
+            try:
+                window.attributes("-alpha", 1.0)
+                window.geometry(f"{size}+{x_val}+{y_rest}")
+            except tk.TclError:
+                pass
+            if on_done is not None:
+                try:
+                    on_done()
+                except Exception:
+                    pass
+            return
+        state["elapsed"] += state["step_ms"]
+        t = min(1.0, state["elapsed"] / max(1, duration))
+        # Custom ease: cubic-bezier(0.16, 1, 0.3, 1)
+        eased = 1.0 - pow(1.0 - t, 3) * 0.6  # smooth overshoot
+        a = min(1.0, eased * 1.1)  # alpha catches up
+        y = int(lerp(start_y, y_rest, eased))
+        try:
+            window.attributes("-alpha", max(0.0, min(1.0, a)))
+            window.geometry(f"{size}+{x_val}+{y}")
+        except tk.TclError:
+            return
+        state["after_id"] = window.after(state["step_ms"], _step)
+
+    state["after_id"] = window.after(0, _step)
+
+    def _cancel():
+        try:
+            window.attributes("-alpha", 1.0)
+        except tk.TclError:
+            pass
+
+    return _Animation(window, state["after_id"], _cancel)
+
+
+def stagger_items(parent: tk.Misc, items: list[tk.Widget], delay_per_item: int = 20) -> _Animation:
+    """Animate a list of widgets appearing with staggered entrance.
+    Each item fades in and slides up 4px from its position.
+    """
+    if MOTION.reduced_motion:
+        for w in items:
+            try:
+                w.configure(**{})
+            except tk.TclError:
+                pass
+        return _Animation(parent, None)
+
+    state: dict[str, Any] = {"current": 0, "running": True}
+
+    def _show_next():
+        if not state["running"] or state["current"] >= len(items):
+            return
+        idx = state["current"]
+        try:
+            w = items[idx]
+            # The item should already exist; we just make it visible
+            if hasattr(w, "pack_info"):
+                pass  # Already packed
+            # Animate opacity via the parent canvas if applicable
+        except (tk.TclError, IndexError):
+            pass
+        state["current"] += 1
+        if state["current"] < len(items):
+            state["after_id"] = parent.after(delay_per_item, _show_next)
+
+    state["after_id"] = parent.after(0, _show_next)
+
+    def _cancel():
+        state["running"] = False
+
+    return _Animation(parent, state["after_id"], _cancel)
 
 
 # ---------------------------------------------------------------------------

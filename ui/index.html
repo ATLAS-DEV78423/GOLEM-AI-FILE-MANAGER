@@ -1,0 +1,68 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>GOLEM</title>
+  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+<div class="shell">
+  <div class="launcher" id="launcher">
+
+    <!-- SEARCH -->
+    <div class="search-area">
+      <div class="search-box">
+        <div class="search-icon">
+          <svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+            <circle cx="11" cy="11" r="8"/>
+            <line x1="21" y1="21" x2="16.65" y2="16.65"/>
+          </svg>
+        </div>
+        <input
+          class="search-input"
+          id="searchInput"
+          type="text"
+          placeholder="Describe what you're looking for…"
+          autocomplete="off"
+          spellcheck="false"
+        />
+        <div class="esc-badge">ESC</div>
+      </div>
+    </div>
+
+    <!-- TYPE FILTERS -->
+    <div class="type-filters">
+      <div class="tf on"    data-filter="all"    onclick="setFilter(this)">All</div>
+      <div class="tf"       data-filter="file"   onclick="setFilter(this)">Files</div>
+      <div class="tf"       data-filter="video"  onclick="setFilter(this)">Videos</div>
+      <div class="tf"       data-filter="note"   onclick="setFilter(this)">Notes</div>
+      <div class="tf"       data-filter="audio"  onclick="setFilter(this)">Audio</div>
+      <div class="tf"       data-filter="web"    onclick="setFilter(this)">Web</div>
+    </div>
+
+    <!-- RESULTS — populated by JS -->
+    <div class="results" id="results" style="max-height:430px;overflow-y:auto;">
+      <!-- renderResults() writes here -->
+    </div>
+
+    <!-- FOOTER -->
+    <div class="footer">
+      <div class="f-left">
+        <div class="status-dot" id="statusDot"></div>
+        <span id="statusText">4,218 files · indexed just now</span>
+      </div>
+      <div class="f-right">
+        <span class="kh">↑↓</span> navigate ·
+        <span class="kh">↵</span> open ·
+        <span class="kh">⌘↵</span> reveal ·
+        <span class="kh">ESC</span> close
+      </div>
+    </div>
+
+  </div>
+</div>
+<script src="app.js"></script>
+</body>
+</html>

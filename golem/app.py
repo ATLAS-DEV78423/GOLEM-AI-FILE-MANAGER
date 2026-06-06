@@ -157,7 +157,11 @@ class GolemApplication:
         # produced dozens of threads racing for the SQLite WAL lock.
         self.index_queue: Queue[Path] = Queue()
         self._index_stop = threading.Event()
-        self.ui = DesktopApp(self._search, self._chat, self._open_file, self._reveal_in_explorer, self.save_config)
+        # Wrap _search to match new DesktopApp signature: (query, top_k) -> list[dict]
+        def _search_wrapper(query: str, top_k: int = 8) -> list[dict[str, Any]]:
+            payload = self._search(query)
+            return payload.get("results", [])[:top_k]
+        self.ui = DesktopApp(_search_wrapper, self._open_file, self._reveal_in_explorer, self.save_config)
         self.watcher: PollingWatcher | None = None
         self._event_watcher_stop: threading.Event | None = None
         self._event_watcher_threads: tuple[threading.Thread, threading.Thread] | None = None
@@ -492,51 +496,6 @@ class GolemApplication:
             return {"status": "ok", "results": [], "message": ""}
         with self._connection() as conn:
             return search_with_fallback(conn, query, self.summarizer, self.config.confidence_threshold).to_payload()
-
-    def _chat(self, question: str) -> dict:
-        """Chat-over-files: answer a natural language question using indexed content.
-
-        Searches for the most relevant files, then uses the LLM summarizer
-        to answer the question from their content.
-        """
-        if not question.strip():
-            return {"status": "ok", "message": "", "answer": "", "results": []}
-        with self._connection() as conn:
-            response = search_with_fallback(conn, question, self.summarizer, self.config.confidence_threshold)
-            payload = response.to_payload()
-            results = payload.get("results", [])
-            if not results:
-                return {
-                    "status": "ok",
-                    "message": "No relevant files found to answer your question.",
-                    "answer": "",
-                    "results": [],
-                }
-            # Format context from top results
-            context_parts = []
-            for r in results[:3]:
-                name = r.get("clean_filename") or r.get("original_filename", "(unnamed)")
-                summary = r.get("summary", "")
-                tags = r.get("tags", "")
-                key_contents = r.get("key_contents", "")
-                context_parts.append(f"--- {name} ---\nSummary: {summary}\nTags: {tags}\nContent: {key_contents}")
-            context = "\n\n".join(context_parts)
-            # Ask the LLM to answer (with hasattr guard for heuristic fallback)
-            try:
-                wrapped = self.summarizer._wrapped
-                if not hasattr(wrapped, "_chat_completion"):
-                    raise AttributeError("underlying summarizer does not support chat")
-                system = "You are GOLEM, a local file intelligence assistant. Answer the user's question based only on the provided file context. Be concise, cite filenames when relevant, and say if the context doesn't contain enough information."
-                user = f"Context from my files:\n\n{context}\n\nQuestion: {question}"
-                answer = wrapped._chat_completion(system, user, wrapped.model)
-            except Exception as exc:
-                _LOG.warning("Chat answer generation failed: %s", exc)
-                answer = "I found relevant files but couldn't generate an answer. Check the search results for more details."
-            return {
-                "status": "ok",
-                "answer": answer.strip(),
-                "results": results[:5],
-            }
 
     def _open_file(self, path: str) -> None:
         try:

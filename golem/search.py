@@ -181,14 +181,45 @@ def _hybrid_candidates(conn, query: str) -> list[dict[str, Any]]:
             }
         )
         out.append(candidate)
+
+    # ── Folder-proximity boost ────────────────────────────────────
+    # If the top result has a parent directory, boost other results
+    # that share the same directory, subdirectory, or parent directory
+    # so users see files that are contextually nearby.
+    if out:
+        top_path = str(out[0].get("current_path") or out[0].get("original_path") or "")
+        try:
+            top_parent = str(Path(top_path).parent.resolve())
+        except OSError:
+            top_parent = ""
+        if top_parent:
+            for c in out[1:]:
+                c_path = str(c.get("current_path") or c.get("original_path") or "")
+                try:
+                    c_parent = str(Path(c_path).parent.resolve())
+                except OSError:
+                    continue
+                # Exact same directory: largest boost
+                if c_parent == top_parent:
+                    c["confidence"] = min(1.0, float(c.get("confidence", 0.0) or 0.0) + 0.08)
+                    c["rrf_score"] = float(c.get("rrf_score", 0.0) or 0.0) + 0.5
+                # Same grandparent (sibling dir): moderate boost
+                elif Path(c_parent).parent == Path(top_parent).parent:
+                    c["confidence"] = min(1.0, float(c.get("confidence", 0.0) or 0.0) + 0.04)
+                    c["rrf_score"] = float(c.get("rrf_score", 0.0) or 0.0) + 0.2
+
+    # Re-sort by updated confidence after proximity boost
+    out.sort(key=lambda x: (-float(x.get("confidence", 0.0) or 0.0), -float(x.get("rrf_score", 0.0) or 0.0)))
     return out
 
 
-def _enrich_with_graph(conn, results: list[dict[str, Any]], depth: int = 1) -> list[dict[str, Any]]:
+def _enrich_with_graph(conn, results: list[dict[str, Any]], depth: int = 2) -> list[dict[str, Any]]:
     """Add graph neighbor data to search results.
 
     For each result, queries ``get_neighbors`` and attaches the related
     nodes as a ``related`` list of ``{"label": ..., "type": ...}`` dicts.
+    ``depth=2`` traverses tag → related files and category → member files,
+    surfacing indirect but contextually relevant connections.
     This is best-effort: if the graph is empty or the query fails, the
     result is returned unmodified.
     """
@@ -199,18 +230,28 @@ def _enrich_with_graph(conn, results: list[dict[str, Any]], depth: int = 1) -> l
             try:
                 nodes = get_neighbors(conn, path, depth=depth)
                 related = []
+                seen_labels: set[str] = set()
                 for n in nodes:
                     n_path = str(n["file_path"] or "")
                     n_type = str(n["type"] or "")
+                    n_label = str(n["label"] or "")
                     if n_path == path:
                         continue
                     if n_type in ("tag", "project"):
-                        related.append({"label": str(n["label"]), "type": n_type, "file_path": n_path})
+                        key = f"{n_type}:{n_label}"
+                        if key not in seen_labels:
+                            seen_labels.add(key)
+                            related.append({"label": n_label, "type": n_type, "file_path": n_path})
                     elif n_type == "file":
-                        # Include file-type neighbors (similar-to, references)
-                        label = str(n["label"] or "") or Path(n_path).stem
-                        related.append({"label": label, "type": "related_file", "file_path": n_path})
-                row["related"] = related[:8]
+                        label = n_label or Path(n_path).stem
+                        key = f"file:{label}"
+                        if key not in seen_labels:
+                            seen_labels.add(key)
+                            related.append({"label": label, "type": "related_file", "file_path": n_path})
+                # Sort related: tags first, then projects, then files
+                type_order = {"tag": 0, "project": 1, "related_file": 2}
+                related.sort(key=lambda x: (type_order.get(x["type"], 99), x["label"]))
+                row["related"] = related[:12]
             except Exception:
                 row["related"] = []
         else:

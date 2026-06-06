@@ -47,7 +47,7 @@ from tkinter import filedialog, messagebox, ttk
 
 from .legal import TERMS_VERSION, terms_of_service_text
 from .summarizer import PROVIDER_SPEC_MAP, check_provider_connection, provider_choices
-from .ui_anim import fade_in, slide_in
+from .ui_anim import ease_out_back, fade_in, slide_in
 from .ui_components import (
     PathField,
     PrimaryButton,
@@ -304,7 +304,7 @@ class OnboardingWizard:
         if self.window is None or not self.window.winfo_exists():
             return
         try:
-            slide_in(self.window, duration_ms=220, from_dy=8)
+            slide_in(self.window, duration_ms=220, from_dy=10, easing=ease_out_back)
             fade_in(self.window, duration_ms=200, from_alpha=0.88, to_alpha=1.0)
         except Exception:
             pass

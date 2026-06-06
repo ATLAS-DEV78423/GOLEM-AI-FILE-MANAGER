@@ -555,21 +555,29 @@ class EmptyState:
     def build(self) -> tk.Frame:
         self._frame = tk.Frame(self.parent, bg=COLORS.bg.panel)
         inner = tk.Frame(self._frame, bg=COLORS.bg.panel)
-        inner.place(relx=0.5, rely=0.45, anchor="center")
+        inner.place(relx=0.5, rely=0.42, anchor="center")
 
-        icon_img = get_icon(self.icon, size=48, color=COLORS.fg.tertiary, master=inner)
-        icon = tk.Label(
-            inner, image=icon_img,
-            bg=COLORS.bg.panel,
-        )
-        icon.image = icon_img  # type: ignore[attr-defined]
-        icon.pack(pady=(0, SPACING.md))
+        # Icon with subtle glow ring
+        glow_frame = tk.Frame(inner, bg=COLORS.bg.elevated, bd=0, highlightthickness=0)
+        icon_size = 56
+        icon_canvas = tk.Canvas(glow_frame, width=icon_size, height=icon_size,
+                                bg=COLORS.bg.elevated, highlightthickness=0, bd=0)
+        icon_canvas.pack()
+        # Draw rounded background
+        r = icon_size // 2
+        icon_canvas.create_arc(0, 0, icon_size, icon_size, start=0, extent=360,
+                               fill=COLORS.bg.panel, outline=COLORS.border.subtle)
+        icon_img = get_icon(self.icon, size=24, color=COLORS.fg.secondary, master=icon_canvas)
+        icon_canvas.create_image(icon_size//2, icon_size//2, image=icon_img)
+        icon_canvas.image = icon_img  # type: ignore[attr-defined]
+        glow_frame.pack(pady=(0, SPACING.lg))
 
         head_lbl = ttk.Label(inner, text=self.headline, style="Title.TLabel")
         head_lbl.pack(pady=(0, SPACING.xs))
         if self.body:
-            ttk.Label(inner, text=self.body, style="Caption.TLabel",
-                      wraplength=380, justify="center").pack(pady=(0, SPACING.md))
+            body_lbl = ttk.Label(inner, text=self.body, style="Caption.TLabel",
+                      wraplength=380, justify="center")
+            body_lbl.pack(pady=(0, SPACING.lg))
         # Subtle loading pulse when used as a spinner placeholder
         if self.icon == "spinner":
             try:
@@ -583,6 +591,99 @@ class EmptyState:
         if self.action_label and self.on_action is not None:
             PrimaryButton(inner, text=self.action_label, command=self.on_action).pack()
         return self._frame
+
+
+# ---------------------------------------------------------------------------
+# File type emoji icons
+# ---------------------------------------------------------------------------
+
+
+_FILE_TYPE_EMOJI: dict[str, str] = {
+    "pdf": "\U0001F4C4",
+    "docx": "\U0001F4DD",
+    "doc": "\U0001F4DD",
+    "xlsx": "\U0001F4CA",
+    "xls": "\U0001F4CA",
+    "csv": "\U0001F4CA",
+    "md": "\U0001F4CB",
+    "markdown": "\U0001F4CB",
+    "txt": "\U0001F4CB",
+    "png": "\U0001F5BC\uFE0F",
+    "jpg": "\U0001F5BC\uFE0F",
+    "jpeg": "\U0001F5BC\uFE0F",
+    "gif": "\U0001F5BC\uFE0F",
+    "svg": "\U0001F5BC\uFE0F",
+    "webp": "\U0001F5BC\uFE0F",
+    "mp4": "\U0001F3AC",
+    "mov": "\U0001F3AC",
+    "avi": "\U0001F3AC",
+    "mkv": "\U0001F3AC",
+    "webm": "\U0001F3AC",
+    "mp3": "\U0001F399\uFE0F",
+    "wav": "\U0001F399\uFE0F",
+    "flac": "\U0001F399\uFE0F",
+    "m4a": "\U0001F399\uFE0F",
+    "m4a": "\U0001F399\uFE0F",  # duplicate key kept intentionally
+    "folder": "\U0001F4C1",
+    "py": "\U0001F4BB",
+    "js": "\U0001F4BB",
+    "ts": "\U0001F4BB",
+    "jsx": "\U0001F4BB",
+    "tsx": "\U0001F4BB",
+    "html": "\U0001F4BB",
+    "css": "\U0001F4BB",
+    "json": "\U0001F4BB",
+    "yaml": "\U0001F4BB",
+    "yml": "\U0001F4BB",
+    "zip": "\U0001F4E6",
+    "rar": "\U0001F4E6",
+    "tar": "\U0001F4E6",
+    "gz": "\U0001F4E6",
+    "ppt": "\U0001F4F1",  # using presentation emoji
+    "pptx": "\U0001F4F1",
+}
+
+
+def file_type_emoji(file_type: str) -> str:
+    """Return the emoji icon for a given file type extension."""
+    return _FILE_TYPE_EMOJI.get(file_type.lower().strip("."), "\U0001F4CE")
+
+
+def file_type_from_name(filename: str) -> str:
+    """Guess the file type from a filename."""
+    if not filename:
+        return "unknown"
+    _, ext = filename.rsplit(".", 1) if "." in filename else (filename, "")
+    # Map extensions to semantic types
+    type_map: dict[str, str] = {
+        "pdf": "pdf", "doc": "docx", "docx": "docx", "xls": "xlsx", "xlsx": "xlsx",
+        "csv": "csv", "md": "md", "txt": "txt",
+        "png": "image", "jpg": "image", "jpeg": "image", "gif": "image",
+        "svg": "image", "webp": "image",
+        "mp4": "video", "mov": "video", "avi": "video", "mkv": "video", "webm": "video",
+        "mp3": "audio", "wav": "audio", "flac": "audio", "m4a": "audio",
+        "py": "code", "js": "code", "ts": "code", "jsx": "code", "tsx": "code",
+        "html": "code", "css": "code", "json": "code", "yaml": "code", "yml": "code",
+        "zip": "archive", "rar": "archive", "tar": "archive", "gz": "archive",
+        "ppt": "presentation", "pptx": "presentation",
+    }
+    return type_map.get(ext.lower(), "unknown")
+
+
+# ---------------------------------------------------------------------------
+# SectionLabel — grouped result header (per spec)
+# ---------------------------------------------------------------------------
+
+
+def SectionLabel(parent: tk.Misc, text: str) -> ttk.Label:
+    """An orange, uppercase, monospace section label for grouped results."""
+    lbl = ttk.Label(
+        parent, text=text,
+        style="Caption.TLabel",
+        font=TYPOGRAPHY.caption.font(),
+        foreground=COLORS.accent.DEFAULT,
+    )
+    return lbl
 
 
 # ---------------------------------------------------------------------------
@@ -1142,6 +1243,7 @@ class StatusBar:
     parent: tk.Misc
     _frame: tk.Frame = field(init=False, repr=False)
     _icon: tk.Label = field(init=False, repr=False)
+    _dot: tk.Canvas = field(init=False, repr=False)
     _text_var: tk.StringVar = field(init=False, repr=False)
     _text: ttk.Label = field(init=False, repr=False)
     _anim: _Animation | None = field(init=False, default=None, repr=False)
@@ -1152,6 +1254,11 @@ class StatusBar:
         self._frame = tk.Frame(self.parent, bg=COLORS.bg.titlebar, height=SIZE.statusbar_height)
         inner = tk.Frame(self._frame, bg=COLORS.bg.titlebar)
         inner.pack(fill="x", padx=SPACING.lg, pady=SPACING.xs)
+        # Status dot indicator (animated)
+        self._dot = tk.Canvas(inner, width=6, height=6, bg=COLORS.bg.titlebar,
+                              highlightthickness=0, bd=0)
+        self._dot.create_oval(0, 0, 6, 6, fill=COLORS.fg.tertiary, outline="", tags="dot")
+        self._dot.pack(side="left", padx=(0, SPACING.sm))
         # Use a per-instance icon image so each window's StatusBar
         # doesn't share a PhotoImage across Tk interpreters.
         self._img_idle = get_icon("info", size=12, color=COLORS.fg.tertiary, master=inner)
@@ -1172,6 +1279,7 @@ class StatusBar:
         self._last_idle = text
         self._text_var.set(text)
         self._text.configure(foreground=COLORS.fg.tertiary)
+        self._set_dot(COLORS.fg.tertiary)
         self._set_icon("info", COLORS.fg.tertiary)
 
     def set_progress(self, text: str) -> None:
@@ -1179,11 +1287,13 @@ class StatusBar:
             return
         self._text_var.set(text)
         self._text.configure(foreground=COLORS.accent.DEFAULT)
+        self._set_dot(COLORS.accent.DEFAULT)
         self._set_icon("spinner", COLORS.accent.DEFAULT)
 
     def set_error(self, text: str, duration_ms: int = 6000) -> None:
         self._text_var.set(text)
         self._text.configure(foreground=COLORS.state.error)
+        self._set_dot(COLORS.state.error)
         self._set_icon("alert", COLORS.state.error)
         if self._error_after is not None:
             try:
@@ -1195,11 +1305,13 @@ class StatusBar:
     def set_warning(self, text: str) -> None:
         self._text_var.set(text)
         self._text.configure(foreground=COLORS.state.warning)
+        self._set_dot(COLORS.state.warning)
         self._set_icon("warning", COLORS.state.warning)
 
     def set_success(self, text: str) -> None:
         self._text_var.set(text)
         self._text.configure(foreground=COLORS.state.success)
+        self._set_dot(COLORS.state.success)
         self._set_icon("check", COLORS.state.success)
 
     def _clear_error(self) -> None:
@@ -1209,7 +1321,15 @@ class StatusBar:
         else:
             self._text_var.set("")
             self._text.configure(foreground=COLORS.fg.tertiary)
+            self._set_dot(COLORS.fg.tertiary)
             self._set_icon("info", COLORS.fg.tertiary)
+
+    def _set_dot(self, color: str) -> None:
+        try:
+            self._dot.delete("dot")
+            self._dot.create_oval(0, 0, 6, 6, fill=color, outline="", tags="dot")
+        except tk.TclError:
+            pass
 
     def _set_icon(self, name: str, color: str) -> None:
         try:

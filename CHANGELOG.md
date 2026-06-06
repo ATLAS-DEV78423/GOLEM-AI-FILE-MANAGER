@@ -3,6 +3,84 @@
 All notable changes to GOLEM are documented in this file. Versions follow
 [Semantic Versioning](https://semver.org/).
 
+## [2.1.0] - 2026-06-06
+
+### Major — New PyWebView Launcher UI
+
+- **Floating search window** — frameless HTML/CSS/JS launcher powered by PyWebView.
+  Replaces the legacy Tkinter popup with a modern dark-themed UI.
+- **Outfit + JetBrains Mono** fonts loaded from Google Fonts — no more system font
+  fallbacks. The UI now has a premium, designed look.
+- **Animations**: 130ms `launchIn` scale+fade on window open, 180ms `itemIn` stagger
+  (30ms increments, slide from left), spring `cubic-bezier(0.34,1.56,0.64,1)` on
+  icon and pill hover, `scale(0.99)` press on items, `scale(0.94)` press on filter
+  pills.
+- **Skeleton shimmer loader** — animated gradient rows appear while search runs,
+  replaced by results when they arrive. No more blank screen while waiting.
+- **Status dot** — pulsing green glow (2.5s) for idle, amber scaling pulse (1.2s)
+  for indexing.
+- **ESC badge hover** — orange tint on hover for keyboard hints and the ESC badge.
+- **Keyboard navigation** — ↑↓ navigate, Enter open, Cmd/Ctrl+Enter reveal in
+  Finder/Explorer, Tab cycle filters, Escape close.
+- **Type filter pills** — All / Files / Videos / Notes / Audio / Web with active
+  state highlighting.
+- **Match-type pills** — color-coded `keyword`, `semantic`, `both`, `via entity`
+  pills explained.
+- **Term highlighting** — matched query terms highlighted in orange in file names
+  and snippets.
+- **Empty state + idle welcome** — graceful empty state with guidance text, and a
+  welcome screen with search icon when the input is empty.
+
+### Enhanced — Graph-Powered Search
+
+- **Deeper graph traversal** — `_enrich_with_graph()` depth increased from 1 to 2
+  hops. Search results now surface tags → related files and categories → member
+  files, revealing indirect but contextually relevant connections.
+- **Graph dedup** — `seen_labels` prevents duplicate tags/files in the related
+  list. Related items sorted: tags first → categories → related files.
+- **Folder-proximity scoring** — files sharing the same parent directory as the
+  top result get a confidence boost (+0.08 for same dir, +0.04 for sibling dir).
+  Results re-sorted after boost.
+- **Graph chips in UI** — purple `#tag` chips and teal `📎 file` chips shown below
+  each result, preserving color distinction when selected.
+
+### New — golem_webview.py Entry Point
+
+- **PyWebView integration** — standalone `golem_webview.py` entry point that wraps
+  the GOLEM backend in a frameless, transparent HTML window.
+- **GolemAPI class** — exposes `search()`, `open_file()`, `reveal_in_finder()`,
+  `hide_window()`, `show_window()`, `get_status()`, `trigger_scan()`,
+  `start_watcher()` to JavaScript via `window.pywebview.api.*`.
+- **PollingWatcher** — auto-indexes new/modified files in the watched folder.
+- **Perodic status** — background thread fetches file count every 30s.
+- **Initial scan** — auto-triggers if no indexed files exist on first run.
+- **Default folders** — creates `GOLEM Files` and `GOLEM Vault` if none configured.
+- **Global hotkey**: `Ctrl+Space` (Windows/Linux) or `Cmd+Shift+Space` (macOS).
+
+### Improved — Installer & Build
+
+- **golem.spec** updated to target `golem_webview.py` (webview) instead of legacy
+  `main.py` (Tkinter). Includes `pywebview` and all platform backends in hidden
+  imports.
+- **golem_webview.spec** added as an alternative PyInstaller spec.
+- **pywebview>=6.2.0** added to `requirements.txt` and `pyproject.toml` dependencies.
+- **INSTALLATION.md** completely rewritten with step-by-step guides for fresh
+  Windows, macOS, and Linux setups — including Python install instructions,
+  download links, first-time setup, and troubleshooting tables.
+- **Version bumped to 2.1.0**.
+
+### Search & Backend
+
+- **Folder-proximity boost** in `_hybrid_candidates()` — files nearby the top
+  result get confidence and RRF score boosts.
+- **Graph enrichment depth** increased from 1 to 2 in `_enrich_with_graph()`.
+- **Graph data surfaced** through `GolemAPI.search()` — `related_tags`,
+  `related_files`, `related_categories` in every result.
+- **Type-safe float conversions** in proximity scoring (prevents `float` vs `None`
+  comparison).
+- **CSS selected state** for graph chips preserves color distinction (purple for
+  tags, teal for files) instead of flattening to white.
+
 ## [Unreleased]
 
 ### Security
@@ -46,7 +124,7 @@ All notable changes to GOLEM are documented in this file. Versions follow
 - **Search**: FTS5 query failures are caught and logged; the search
   popup gets an empty result instead of a crash.
 - **Search**: rerank path comparison is case-insensitive on Windows /
-  macOS and tolerant of `\` vs `/` separators.
+  macOS and tolerant of `\\` vs `/` separators.
 - **Scanner**: `reconcile_missing` streams rows in batches of 500; a
   100 k-row index no longer loads everything into memory.
 

@@ -23,7 +23,7 @@ fi
 
 # Read APP_VERSION from constants
 APP_VERSION="$(
-  "$PYTHON_BIN" -c "import sys; sys.path.insert(0, '.'); from golem.constants import APP_VERSION; print(APP_VERSION)" 2>/dev/null || echo "2.0.0"
+  "$PYTHON_BIN" -c "import sys; sys.path.insert(0, '.'); from golem.constants import APP_VERSION; print(APP_VERSION)" 2>/dev/null || echo "2.1.0"
 )"
 
 # Set up build venv

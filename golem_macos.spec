@@ -1,4 +1,10 @@
 # -*- mode: python ; coding: utf-8 -*-
+"""
+PyInstaller spec for GOLEM v2.1 — macOS WebView-based launcher.
+
+Targets golem_webview.py (the new PyWebView front-end) instead of the
+legacy main.py (Tkinter).
+"""
 from pathlib import Path
 import os
 import sys
@@ -14,28 +20,71 @@ for folder in ("ui", "assets"):
         datas.append((str(folder_path), folder))
 
 a = Analysis(
-    ["main.py"],
+    ["golem_webview.py"],  # v2.1 entry point
     pathex=[str(ROOT)],
     binaries=[],
     datas=datas,
     hiddenimports=[
+        # ── GOLEM core ──
+        "golem",
+        "golem.ai",
+        "golem.app",
+        "golem.chunker",
+        "golem.config",
+        "golem.constants",
+        "golem.embeddings",
+        "golem.errors",
+        "golem.extractor",
+        "golem.hybrid_search",
+        "golem.indexer",
+        "golem.legal",
+        "golem.organizer",
+        "golem.scanner",
+        "golem.search",
+        "golem.summarizer",
+        "golem.undo",
+        "golem.utils",
+        "golem.vault_writer",
+        "golem.vector_store",
+        "golem.watcher",
+        "golem.watcher_events",
+
+        # ── PyWebView (new for v2.1) ──
+        "webview",
+        "webview.platforms",
+        "webview.platforms.cocoa",
+        "webview.util",
+
+        # ── Hotkey ──
         "keyboard",
         "pynput",
+        "pynput.keyboard",
+
+        # ── Tray (legacy, kept for packaging test) ──
         "pystray",
         "PIL",
         "PIL.Image",
         "PIL.ImageDraw",
-        "openpyxl",
-        "pypdf",
-        "docx",
-        "defusedxml",
-        "defusedxml.ElementTree",
+
+        # ── Cryptography ──
         "cryptography",
         "cryptography.fernet",
         "cryptography.hazmat",
         "cryptography.hazmat.backends",
         "cryptography.hazmat.primitives",
         "cffi",
+
+        # ── File extraction ──
+        "openpyxl",
+        "openpyxl.cell",
+        "openpyxl.cell._writer",
+        "openpyxl.worksheet",
+        "pypdf",
+        "docx",
+
+        # ── Security ──
+        "defusedxml",
+        "defusedxml.ElementTree",
     ],
     hookspath=[],
     hooksconfig={},
@@ -88,8 +137,8 @@ if sys.platform == "darwin":
         info_plist={
             "CFBundleDisplayName": "GOLEM",
             "CFBundleName": "GOLEM",
-            "CFBundleShortVersionString": "2.0.0",
-            "CFBundleVersion": "2.0.0",
+            "CFBundleShortVersionString": "2.1.0",
+            "CFBundleVersion": "2.1.0",
             "NSHighResolutionCapable": True,
             # Include both architectures in the bundle metadata
             "CFBundleSupportedPlatforms": ["MacOSX"],
