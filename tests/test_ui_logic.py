@@ -81,7 +81,7 @@ def test_components_imports() -> None:
         "PathField", "SecretField", "PrimaryButton", "SecondaryButton",
         "IconButton", "StatusPill", "CategoryBadge", "EmptyState",
         "KeyboardHint", "Separator", "StepIndicator", "HoverList",
-        "IndeterminateBar", "FooterHints", "StatusBar",
+        "SkeletonLoader", "FooterHints", "StatusBar",
     ):
         assert hasattr(mod, name), name
 

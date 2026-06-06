@@ -2,6 +2,18 @@ $ErrorActionPreference = 'Stop'
 $root = Split-Path -Parent $MyInvocation.MyCommand.Path
 Set-Location $root
 
+function Get-GolemVersion {
+  $version = $env:GOLEM_VERSION
+  if ($version) { return $version }
+
+  $match = Select-String -Path .\golem\constants.py -Pattern 'APP_VERSION\s*=\s*"([^"]+)"' | Select-Object -First 1
+  if ($match -and $match.Matches.Count -gt 0) {
+    return $match.Matches[0].Groups[1].Value
+  }
+
+  return '2.0.0'
+}
+
 function Find-Python {
   $cmd = Get-Command python.exe -ErrorAction SilentlyContinue
   if ($cmd) { return $cmd.Source }
@@ -44,7 +56,10 @@ if ($LASTEXITCODE -ne 0) { throw "PyInstaller build for installer failed." }
 
 # Rename installer to a clean name
 if (Test-Path ".\dist\GOLEM-Setup.exe") {
-  $version = "2.0.0"
+  $version = Get-GolemVersion
+  if ($version -match '^v(.+)$') {
+    $version = $Matches[1]
+  }
   $finalName = "GOLEM-Setup-$version.exe"
   Move-Item ".\dist\GOLEM-Setup.exe" ".\dist\$finalName" -Force
   Write-Host "Step 4/4: Renamed installer to $finalName" -ForegroundColor Cyan

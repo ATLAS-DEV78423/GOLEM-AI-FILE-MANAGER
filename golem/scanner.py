@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 import datetime as _dt
 import hashlib
 import logging
@@ -8,15 +9,25 @@ from collections.abc import Callable, Iterator
 from dataclasses import dataclass
 from pathlib import Path
 
+from . import embeddings, vector_store
+from .chunker import chunk_text
 from .constants import SUPPORTED_EXTENSIONS, SYSTEM_SKIP_DIRS
 from .extractor import extract_text
 from .indexer import (
     FileRecord,
+    delete_chunks_for_path,
     find_by_hash,
+    get_chunks_for_path,
+    get_file_by_path,
+    get_index_state,
     mark_missing,
     set_current_path,
+    set_index_state,
     transaction,
+    insert_chunks,
     upsert_file,
+    upsert_edge,
+    upsert_node,
 )
 from .organizer import organize_file, record_move
 from .summarizer import BaseSummarizer
@@ -83,6 +94,97 @@ def count_files(root: Path) -> int:
 
 def _now_iso() -> str:
     return _dt.datetime.now(_dt.UTC).isoformat()
+
+
+def _sync_graph(conn, record: FileRecord) -> None:
+    """Best-effort graph update for the indexed file."""
+    try:
+        file_label = record.clean_filename or record.original_filename
+        metadata = json.dumps(
+            {
+                "summary": record.summary,
+                "tags": [tag for tag in record.tags.split(",") if tag],
+                "category": record.category,
+                "current_path": record.current_path,
+            },
+            ensure_ascii=False,
+        )
+        with transaction(conn):
+            file_node_id = upsert_node(
+                conn,
+                "file",
+                file_label,
+                file_path=record.original_path,
+                metadata_json=metadata,
+            )
+            conn.execute(
+                "DELETE FROM edges WHERE source_id = ? AND auto_generated = 1",
+                (file_node_id,),
+            )
+            tags = [tag.strip() for tag in record.tags.split(",") if tag.strip()]
+            for tag in tags[:8]:
+                tag_id = upsert_node(conn, "tag", tag)
+                upsert_edge(
+                    conn,
+                    file_node_id,
+                    tag_id,
+                    "mentions",
+                    weight=1.0,
+                    auto_generated=True,
+                    user_confirmed=False,
+                    evidence_json=json.dumps({"kind": "tag"}, ensure_ascii=False),
+                )
+            if record.category:
+                category_id = upsert_node(conn, "project", record.category)
+                upsert_edge(
+                    conn,
+                    file_node_id,
+                    category_id,
+                    "part-of",
+                    weight=0.8,
+                    auto_generated=True,
+                    user_confirmed=False,
+                    evidence_json=json.dumps({"kind": "category"}, ensure_ascii=False),
+                )
+    except Exception as exc:
+        logging.warning("Semantic graph sync failed for %s: %s", record.original_path, exc)
+
+
+def _sync_semantic_artifacts(conn, path: str, content_hash: str, text: str, record: FileRecord) -> None:
+    """Best-effort semantic index maintenance for a file."""
+    try:
+        # Remove stale data first so repeated scans stay idempotent.
+        if not text.strip():
+            delete_chunks_for_path(conn, path)
+            with transaction(conn):
+                set_index_state(conn, path, content_hash, "unreadable")
+            _sync_graph(conn, record)
+            return
+
+        chunks = chunk_text(text, file_path=path)
+        if not chunks:
+            delete_chunks_for_path(conn, path)
+            with transaction(conn):
+                set_index_state(conn, path, content_hash, "unreadable")
+            _sync_graph(conn, record)
+            return
+
+        insert_count = insert_chunks(conn, path, chunks)
+        if insert_count > 0 and vector_store.is_available():
+            rows = get_chunks_for_path(conn, path)
+            texts = [str(row["text"] or "") for row in rows]
+            vectors = embeddings.embed_batch(texts, batch_size=32)
+            with transaction(conn):
+                for row, vector in zip(rows, vectors, strict=False):
+                    vector_store.upsert(conn, int(row["id"]), str(row["text"] or ""), vector)
+                set_index_state(conn, path, content_hash, "ok")
+        else:
+            with transaction(conn):
+                set_index_state(conn, path, content_hash, "ok")
+
+        _sync_graph(conn, record)
+    except Exception as exc:
+        logging.warning("Semantic index sync failed for %s: %s", path, exc)
 
 
 def _rollback(
@@ -153,6 +255,13 @@ def index_one_file(
         raise
     try:
         content_hash = _content_hash(path, size)
+        state = get_index_state(conn, str(path))
+        if state and str(state["content_hash"] or "") == content_hash:
+            status = str(state["status"] or "")
+            if status in {"ok", "skipped", "unreadable"}:
+                existing_row = get_file_by_path(conn, str(path))
+                if existing_row is not None:
+                    return int(existing_row["id"]), "unchanged"
         existing = find_by_hash(conn, content_hash)
         if existing and existing["original_path"] == str(path):
             return int(existing["id"]), "unchanged"
@@ -201,6 +310,8 @@ def index_one_file(
             except Exception:
                 _rollback(conn, file_id, target_path, None, path)
                 raise
+            record.current_path = str(target_path)
+            _sync_semantic_artifacts(conn, record.original_path, content_hash, text, record)
             return file_id, "duplicate"
 
         # --- SKIPPED PATH (no extractable text) ---
@@ -227,6 +338,7 @@ def index_one_file(
             )
             with transaction(conn):
                 file_id = upsert_file(conn, record)
+            _sync_semantic_artifacts(conn, record.original_path, content_hash, text, record)
             return file_id, "skipped"
 
         # --- NORMAL PATH ---
@@ -277,6 +389,9 @@ def index_one_file(
         except Exception:
             _rollback(conn, file_id, target_path, note_path, path)
             raise
+        record.current_path = str(target_path)
+        record.obsidian_note_path = str(note_path)
+        _sync_semantic_artifacts(conn, record.original_path, content_hash, text, record)
         return file_id, "done"
     except Exception as exc:
         if log:
@@ -326,7 +441,7 @@ def reconcile_missing(conn, vault_folder: Path) -> None:
     for a hundred thousand.
     """
     cursor = conn.execute(
-        "SELECT id, original_path, current_path, obsidian_note_path "
+        "SELECT id, original_path, current_path, obsidian_note_path, content_hash "
         "FROM files WHERE index_status IN ('done', 'duplicate')"
     )
     while True:
@@ -340,5 +455,11 @@ def reconcile_missing(conn, vault_folder: Path) -> None:
                 continue
             with transaction(conn):
                 mark_missing(conn, int(row["id"]))
+                set_index_state(
+                    conn,
+                    str(row["original_path"] or row["current_path"] or ""),
+                    str(row["content_hash"] or ""),
+                    "missing",
+                )
             if row["obsidian_note_path"]:
                 archive_orphan_note(vault_folder, str(row["obsidian_note_path"]))

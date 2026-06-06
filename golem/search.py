@@ -1,10 +1,12 @@
 from __future__ import annotations
 
 import sys
+from pathlib import Path
 from dataclasses import asdict, dataclass, field
 from typing import Any
 
-from .indexer import recent_files, search_files
+from . import hybrid_search
+from .indexer import get_neighbors, recent_files, search_files
 from .summarizer import BaseSummarizer
 
 
@@ -53,8 +55,18 @@ class SearchResult:
     category: str
     obsidian_note_path: str
     index_status: str
+    match_type: str = ""
+    chunk_text: str = ""
+    rrf_score: float = 0.0
+    bm25_score: float = 0.0
+    vector_score: float = 0.0
     confidence: float = 0.0
     rank: float = 0.0
+    related: list[dict[str, str]] = field(default_factory=list)
+
+    @property
+    def has_related(self) -> bool:
+        return len(self.related) > 0
 
     @classmethod
     def from_row(cls, row: dict[str, Any]) -> SearchResult:
@@ -70,8 +82,14 @@ class SearchResult:
             category=str(row.get("category", "")),
             obsidian_note_path=str(row.get("obsidian_note_path", "")),
             index_status=str(row.get("index_status", "")),
+            match_type=str(row.get("match_type", "")),
+            chunk_text=str(row.get("chunk_text", "")),
+            rrf_score=float(row.get("rrf_score", 0.0) or 0.0),
+            bm25_score=float(row.get("bm25_score", 0.0) or 0.0),
+            vector_score=float(row.get("vector_score", 0.0) or 0.0),
             confidence=float(row.get("confidence", 0.0) or 0.0),
             rank=float(row.get("rank", 0.0) or 0.0),
+            related=row.get("related", []),
         )
 
 
@@ -110,6 +128,97 @@ def _to_results(rows: list[dict[str, Any]]) -> list[SearchResult]:
     return [SearchResult.from_row(row) for row in rows]
 
 
+def _confidence_for_hybrid(hit: Any) -> float:
+    match_type = str(getattr(hit, "match_type", "") or "")
+    base = {
+        "both": 0.92,
+        "keyword": 0.86,
+        "semantic": 0.8,
+    }.get(match_type, 0.75)
+    rrf_score = float(getattr(hit, "rrf_score", 0.0) or 0.0)
+    return min(1.0, base + min(rrf_score * 5.0, 0.08))
+
+
+def _hybrid_candidates(conn, query: str) -> list[dict[str, Any]]:
+    out: list[dict[str, Any]] = []
+    for hit in hybrid_search.search(conn, query, top_k=10):
+        row = conn.execute(
+            """
+            SELECT id, original_filename, clean_filename, original_path, current_path,
+                   summary, tags, key_contents, category, obsidian_note_path, index_status
+            FROM files
+            WHERE original_path = ? OR current_path = ?
+            LIMIT 1
+            """,
+            (hit.file_path, hit.file_path),
+        ).fetchone()
+        candidate: dict[str, Any]
+        if row is not None:
+            candidate = dict(row)
+        else:
+            candidate = {
+                "id": 0,
+                "original_filename": Path(hit.file_path).name,
+                "clean_filename": Path(hit.file_path).stem,
+                "original_path": hit.file_path,
+                "current_path": hit.file_path,
+                "summary": "",
+                "tags": "",
+                "key_contents": "",
+                "category": "",
+                "obsidian_note_path": "",
+                "index_status": "",
+            }
+        candidate.update(
+            {
+                "match_type": hit.match_type,
+                "chunk_text": hit.chunk_text,
+                "rrf_score": hit.rrf_score,
+                "bm25_score": hit.bm25_score,
+                "vector_score": hit.vector_score,
+                "confidence": _confidence_for_hybrid(hit),
+                "rank": -hit.rrf_score,
+            }
+        )
+        out.append(candidate)
+    return out
+
+
+def _enrich_with_graph(conn, results: list[dict[str, Any]], depth: int = 1) -> list[dict[str, Any]]:
+    """Add graph neighbor data to search results.
+
+    For each result, queries ``get_neighbors`` and attaches the related
+    nodes as a ``related`` list of ``{"label": ..., "type": ...}`` dicts.
+    This is best-effort: if the graph is empty or the query fails, the
+    result is returned unmodified.
+    """
+    out: list[dict[str, Any]] = []
+    for row in results:
+        path = str(row.get("original_path") or row.get("current_path") or "")
+        if path:
+            try:
+                nodes = get_neighbors(conn, path, depth=depth)
+                related = []
+                for n in nodes:
+                    n_path = str(n["file_path"] or "")
+                    n_type = str(n["type"] or "")
+                    if n_path == path:
+                        continue
+                    if n_type in ("tag", "project"):
+                        related.append({"label": str(n["label"]), "type": n_type, "file_path": n_path})
+                    elif n_type == "file":
+                        # Include file-type neighbors (similar-to, references)
+                        label = str(n["label"] or "") or Path(n_path).stem
+                        related.append({"label": label, "type": "related_file", "file_path": n_path})
+                row["related"] = related[:8]
+            except Exception:
+                row["related"] = []
+        else:
+            row["related"] = []
+        out.append(row)
+    return out
+
+
 def search_with_fallback(
     conn,
     query: str,
@@ -121,7 +230,12 @@ def search_with_fallback(
     Always returns a SearchResponse. The UI can read `response.is_not_found`
     to decide whether to show the recents list.
     """
-    candidates = search_files(conn, query, limit=10)
+    candidates = _hybrid_candidates(conn, query)
+    if not candidates:
+        candidates = search_files(conn, query, limit=10)
+    # Enrich with graph context
+    if candidates:
+        candidates = _enrich_with_graph(conn, candidates)
     if not candidates:
         return SearchResponse(
             status="not_found",

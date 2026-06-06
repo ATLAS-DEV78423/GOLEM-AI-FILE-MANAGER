@@ -34,9 +34,7 @@ from typing import Any, Literal, cast
 from .ui_anim import (
     _Animation,
     color_transition,
-    indeterminate_bar,
     shimmer_skeleton,
-    tick_dots,
 )
 from .ui_icons import get_icon
 from .ui_theme import (
@@ -176,8 +174,6 @@ class SecretField:
     _result_var: tk.StringVar = field(init=False, repr=False)
     _result_label: ttk.Label = field(init=False, repr=False)
     _showing: bool = field(init=False, default=False, repr=False)
-    _spinner: _Animation | None = field(init=False, default=None, repr=False)
-
     def build(self) -> tk.Frame:
         self._root = tk.Frame(self.parent, bg=COLORS.bg.panel)
         ttk.Label(self._root, text=self.label, style="Caption.TLabel").pack(
@@ -236,25 +232,16 @@ class SecretField:
             return
         if self.on_test is None:
             return
-        if self._spinner is not None:
-            self._spinner.cancel()
-            self._spinner = None
-        self._result_var.set("Testing")
+        self._result_var.set("Testing...")
         self._result_label.configure(foreground=COLORS.fg.tertiary)
-        self._spinner = tick_dots(self._result_label, base="Testing", interval_ms=350)
         self._test_btn.state(["disabled"])
-        # Defer the actual test to the next tick so the spinner is visible.
         def _run():
             try:
                 ok, msg = self.on_test()
-            except Exception as exc:  # pragma: no cover — defensive
+            except Exception as exc:
                 ok, msg = False, str(exc)
-            if self._spinner is not None:
-                self._spinner.cancel()
-                self._spinner = None
             self._test_btn.state(["!disabled"])
             self.set_result(ok, msg)
-
         self._root.after(50, _run)
 
     def set_result(self, ok: bool, message: str) -> None:
@@ -265,19 +252,11 @@ class SecretField:
         )
 
     def set_testing(self, message: str = "Testing") -> None:
-        """Mark as in-flight; the caller will follow up with set_result."""
-        if self._spinner is not None:
-            self._spinner.cancel()
-            self._spinner = None
         self._result_var.set(message)
         self._result_label.configure(foreground=COLORS.fg.tertiary)
-        self._spinner = tick_dots(self._result_label, base=message, interval_ms=350)
         self._test_btn.state(["disabled"])
 
     def clear_testing(self) -> None:
-        if self._spinner is not None:
-            self._spinner.cancel()
-            self._spinner = None
         self._test_btn.state(["!disabled"])
         self._result_var.set("")
         self._result_label.configure(foreground=COLORS.fg.tertiary)
@@ -695,6 +674,8 @@ class _RowSpec:
     secondary: str = ""
     tertiary: str = ""
     badge: tuple[str, str] | None = None  # (text, color)
+    match_pill: tuple[str, str] | None = None  # (match_type, color) — why-matched indicator
+    related_badges: list[tuple[str, str]] = field(default_factory=list)  # related file/tag badges
     payload: Any = None
 
 
@@ -760,6 +741,7 @@ class HoverList:
                     secondary=str(r.get("secondary", "")),
                     tertiary=str(r.get("tertiary", "")),
                     badge=r.get("badge"),
+                    related_badges=r.get("related_badges", []),
                     payload=r.get("payload"),
                 ))
         self._rows = normalized
@@ -1017,22 +999,30 @@ class HoverList:
                     font=TYPOGRAPHY.caption.font(), anchor="w",
                     width=w - SPACING.lg * 2,
                 )
-            # Tertiary (right-aligned)
-            if row.tertiary:
-                self._canvas.create_text(
-                    w - SPACING.lg, y + self.row_height // 2,
-                    text=row.tertiary, fill=COLORS.fg.tertiary,
-                    font=TYPOGRAPHY.code.font(), anchor="e",
+            # Match pill (why-matched — right-aligned)
+            if row.match_pill:
+                ptext, pcolor = row.match_pill
+                pill_w = max(36, len(ptext) * 6 + 16)
+                pill_h = 18
+                px = w - SPACING.lg - pill_w
+                py = y + self.row_height // 2 - pill_h // 2
+                # Pill background with rounded look (simulated with rect)
+                self._canvas.create_rectangle(
+                    px, py, px + pill_w, py + pill_h,
+                    fill=COLORS.bg.panel, outline=pcolor, width=1,
                 )
-            # Badge
+                self._canvas.create_text(
+                    px + pill_w // 2, py + pill_h // 2,
+                    text=ptext, fill=pcolor,
+                    font=TYPOGRAPHY.pill.font(), anchor="center",
+                )
+            # Badge (category) — left of match pill or right edge
+            badge_right = (px - 8) if row.match_pill else (w - SPACING.lg)
             if row.badge:
                 text, color = row.badge
                 text_width = max(40, len(text) * 7 + 16)
-                bx = w - SPACING.lg - (text_width + 8 if row.tertiary else text_width)
+                bx = badge_right - text_width
                 by = y + self.row_height // 2
-                # Tk doesn't reliably accept 8-char RGBA hex, so draw a
-                # flat outlined rectangle with the category color and
-                # rely on the text fill to communicate the hue.
                 self._canvas.create_rectangle(
                     bx, by - 9, bx + text_width, by + 9,
                     fill=COLORS.bg.elevated, outline=color,
@@ -1042,6 +1032,26 @@ class HoverList:
                     text=text, fill=color,
                     font=TYPOGRAPHY.micro.font(), anchor="center",
                 )
+
+            # Related file badges (bottom row)
+            if row.related_badges:
+                related_x = SPACING.lg
+                related_y = y + self.row_height - 4
+                max_related_w = w - SPACING.lg * 2
+                for rtext, rcolor in row.related_badges:
+                    rtw = max(20, len(rtext) * 6 + 12)
+                    if related_x + rtw > max_related_w:
+                        break
+                    self._canvas.create_rectangle(
+                        related_x, related_y - 7, related_x + rtw, related_y + 7,
+                        fill=COLORS.bg.panel, outline=rcolor,
+                    )
+                    self._canvas.create_text(
+                        related_x + rtw // 2, related_y,
+                        text=rtext, fill=rcolor,
+                        font=TYPOGRAPHY.kbd.font(), anchor="center",
+                    )
+                    related_x += rtw + 4
 
         # Bottom fade — a thin gradient line at the very bottom edge
         self._canvas.create_rectangle(
@@ -1055,10 +1065,11 @@ class HoverList:
 
 
 @dataclass
-class IndeterminateBar:
+class SkeletonLoader:
+    """A shimmer skeleton loader bar. No spinners — only skeleton shimmer."""
+
     parent: tk.Misc
-    color: str = COLORS.accent.DEFAULT
-    height: int = 2
+    height: int = 3
 
     _canvas: tk.Canvas = field(init=False, repr=False)
     _anim: _Animation | None = field(init=False, default=None, repr=False)
@@ -1072,7 +1083,15 @@ class IndeterminateBar:
 
     def start(self) -> None:
         self.stop()
-        self._anim = indeterminate_bar(self._canvas, color=self.color, height=self.height)
+        self._anim = shimmer_skeleton(
+            self._canvas,
+            x=0, y=0,
+            width=self._canvas.winfo_width() or 200,
+            height=self.height,
+            base_color=COLORS.bg.panel,
+            highlight_color=COLORS.bg.elevated,
+            period_ms=1600,
+        )
 
     def stop(self) -> None:
         if self._anim is not None:
@@ -1199,3 +1218,73 @@ class StatusBar:
             self._icon.image = new  # type: ignore[attr-defined]
         except tk.TclError:
             pass
+
+
+class RoundedCard(tk.Canvas):
+    """A beautiful card container with rounded corners and optional left vertical accent border."""
+    def __init__(
+        self,
+        parent: tk.Misc,
+        *,
+        bg: str = COLORS.bg.panel,
+        outline: str = COLORS.border.subtle,
+        width: int = 1,
+        radius: int = 12,
+        left_accent: str | None = None,
+        **kwargs
+    ):
+        super().__init__(parent, bg=COLORS.bg.canvas, bd=0, highlightthickness=0, **kwargs)
+        self.card_bg = bg
+        self.card_outline = outline
+        self.card_width = width
+        self.card_radius = radius
+        self.left_accent = left_accent
+        
+        # Frame inside the card
+        self.inner_frame = tk.Frame(self, bg=bg, bd=0, highlightthickness=0)
+        self._window_id = self.create_window(0, 0, window=self.inner_frame, anchor="nw")
+        
+        self.bind("<Configure>", self._on_configure)
+
+    def _on_configure(self, event: tk.Event) -> None:
+        self.redraw()
+
+    def redraw(self) -> None:
+        self.delete("card_bg")
+        self.delete("card_border")
+        
+        w = self.winfo_width()
+        h = self.winfo_height()
+        r = self.card_radius
+        bg = self.card_bg
+        outline = self.card_outline
+        wd = self.card_width
+        
+        if w <= 2*r or h <= 2*r:
+            return
+            
+        # Draw rounded fill
+        self.create_arc(0, 0, 2*r, 2*r, start=90, extent=90, fill=bg, outline="", tags="card_bg")
+        self.create_arc(w-2*r, 0, w, 2*r, start=0, extent=90, fill=bg, outline="", tags="card_bg")
+        self.create_arc(w-2*r, h-2*r, w, h, start=270, extent=90, fill=bg, outline="", tags="card_bg")
+        self.create_arc(0, h-2*r, 2*r, h, start=180, extent=90, fill=bg, outline="", tags="card_bg")
+        self.create_rectangle(r, 0, w-r, h, fill=bg, outline="", tags="card_bg")
+        self.create_rectangle(0, r, w, h-r, fill=bg, outline="", tags="card_bg")
+        
+        # Draw borders
+        if wd > 0:
+            self.create_line(r, 0, w-r, 0, fill=outline, width=wd, tags="card_border")
+            self.create_line(w, r, w, h-r, fill=outline, width=wd, tags="card_border")
+            self.create_line(r, h, w-r, h, fill=outline, width=wd, tags="card_border")
+            
+            l_color = self.left_accent if self.left_accent else outline
+            self.create_line(0, r, 0, h-r, fill=l_color, width=wd if not self.left_accent else wd + 1, tags="card_border")
+            
+            self.create_arc(0, 0, 2*r, 2*r, start=90, extent=90, style="arc", outline=l_color, width=wd, tags="card_border")
+            self.create_arc(w-2*r, 0, w, 2*r, start=0, extent=90, style="arc", outline=outline, width=wd, tags="card_border")
+            self.create_arc(w-2*r, h-2*r, w, h, start=270, extent=90, style="arc", outline=outline, width=wd, tags="card_border")
+            self.create_arc(0, h-2*r, 2*r, h, start=180, extent=90, style="arc", outline=l_color, width=wd, tags="card_border")
+
+        pad = r // 2
+        self.itemconfig(self._window_id, x=pad, y=pad, width=w-2*pad, height=h-2*pad)
+

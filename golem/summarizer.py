@@ -220,10 +220,25 @@ class _LLMBaseSummarizer(BaseSummarizer):
 
     def _execute_request(self, req: request.Request) -> dict[str, Any]:
         self._throttle()
+        # Cloudflare (used by Groq, OpenRouter, etc.) blocks the default
+        # Python-urllib User-Agent on POST requests (error 1010). Set a
+        # realistic browser User-Agent to avoid the block.
+        if not req.has_header("User-Agent"):
+            req.add_header(
+                "User-Agent",
+                "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+                "AppleWebKit/537.36 (KHTML, like Gecko) "
+                "Chrome/120.0.0.0 Safari/537.36",
+            )
         try:
             with request.urlopen(req, timeout=60) as response:
                 data = json.loads(response.read().decode("utf-8"))
         except error.HTTPError as exc:
+            body = ""
+            try:
+                body = exc.read().decode("utf-8", errors="replace")
+            except Exception:
+                body = ""
             if exc.code == 429:
                 # Honor Retry-After if the provider sent one; otherwise wait 60s.
                 retry_after = exc.headers.get("Retry-After") if exc.headers else None
@@ -237,7 +252,10 @@ class _LLMBaseSummarizer(BaseSummarizer):
                 with request.urlopen(req, timeout=60) as response:
                     data = json.loads(response.read().decode("utf-8"))
             else:
-                raise
+                message = f"{exc.code} {exc.reason}"
+                if body:
+                    message = f"{message}: {body}"
+                raise RuntimeError(message) from exc
         except error.URLError:
             raise
         return data
@@ -290,17 +308,32 @@ class _LLMBaseSummarizer(BaseSummarizer):
         content = self._chat_completion(system_prompt, retry_prompt, self.model)
         return self._parse_metadata(content, filename, text_snippet)
 
+    def _metadata_system_prompt(self) -> str:
+        return (
+            "You are GOLEM, a local document understanding engine. "
+            "Classify files from the filename and snippet only. "
+            "Do not invent facts, do not mention being uncertain, and do not add any prose outside the JSON object. "
+            "Return only valid JSON with keys summary, tags, key_contents, category, clean_name. "
+            "Use a concise one-sentence summary, 3 to 8 short tags, and a stable category from: "
+            "Finance, Research, Design, Code, Media, Personal, Legal, Other, Duplicates."
+        )
+
+    def _metadata_user_prompt(self, filename: str, text_snippet: str) -> str:
+        return (
+            "Task: infer metadata for a document, note, guide, prompt library entry, or other file.\n"
+            "Focus on what the document is about and what a user would search for.\n"
+            "Prefer concrete nouns and topics over generic labels.\n"
+            "If the file is mostly instructions, prompts, or a tutorial, summarize that purpose directly.\n"
+            "If the content is sparse or ambiguous, fall back to a safe general summary.\n"
+            "Do not write markdown, code fences, bullet points, or explanations.\n\n"
+            f"Filename: {filename}\n"
+            f"Text snippet: {text_excerpt(text_snippet, 300)}\n\n"
+            "Return JSON only."
+        )
+
     def get_file_metadata(self, filename: str, text_snippet: str) -> FileMetadata:
-        system_prompt = (
-            "You are GOLEM, a file indexing assistant. "
-            "Return only valid JSON with keys summary, tags, key_contents, category, clean_name."
-        )
-        user_prompt = (
-            "Given a filename and a snippet of file content, infer the best metadata.\n"
-            "Return pure JSON only.\n\n"
-            f"File: {filename}\n"
-            f"Content snippet: {text_excerpt(text_snippet, 300)}"
-        )
+        system_prompt = self._metadata_system_prompt()
+        user_prompt = self._metadata_user_prompt(filename, text_snippet)
         try:
             return self._request_metadata(filename, text_snippet, system_prompt, user_prompt)
         except Exception:
@@ -312,12 +345,19 @@ class _LLMBaseSummarizer(BaseSummarizer):
             fb = self.fallback or HeuristicSummarizer()
             return fb.search_rerank(query, candidates)
         system_prompt = (
-            "You are a file finder. Given a user description and candidate files, return only the filepath of the best match. "
-            "If no file matches well, return exactly NOT_FOUND."
+            "You are GOLEM's search reranker. "
+            "Choose the single best candidate file for the user's intent using the candidate metadata only. "
+            "Return exactly one file path from the candidate list, or exactly NOT_FOUND if none fit well. "
+            "Do not explain your choice. Do not return JSON. Do not invent paths."
         )
         user_prompt = (
-            f"User description: {query}\n\n"
-            f"Candidate files: {json.dumps(candidates, ensure_ascii=False)}"
+            "Task: pick the best matching document for the user.\n"
+            "Prefer semantic intent over keyword overlap.\n"
+            "Use title, summary, tags, key contents, and category together.\n"
+            "If the query is about a guide, note, prompt set, or reference doc, choose the candidate that best matches that document type.\n"
+            "If no candidate is a good fit, return NOT_FOUND.\n\n"
+            f"User query: {query}\n"
+            f"Candidates: {json.dumps(candidates, ensure_ascii=False)}"
         )
         try:
             content = self._chat_completion(system_prompt, user_prompt, self.model).strip()
@@ -522,23 +562,51 @@ def check_provider_connection(
         summarizer = OpenAICompatibleSummarizer(
             api_key=api_key, model=selected_model, base_url=selected_base_url, provider_key=provider_key
         )
-    # Disable the heuristic fallback so a network error is surfaced,
-    # not silently converted into a heuristic result. The base class
-    # coerces ``fallback=None`` to ``HeuristicSummarizer()`` in __init__,
-    # so we replace it with a stub that always raises.
-    class _FailFallback(BaseSummarizer):
-        def get_file_metadata(self, filename: str, text_snippet: str) -> FileMetadata:
-            raise RuntimeError("provider call failed")
-        def search_rerank(self, query: str, candidates: list[dict[str, Any]]) -> str:
-            raise RuntimeError("provider call failed")
-    summarizer.fallback = _FailFallback()
     try:
-        metadata = summarizer.get_file_metadata(
-            "golem-test.txt", "This is a short test of the API key and model."
+        prompt = (
+            "Return only JSON with keys summary, tags, key_contents, category, clean_name. "
+            "Summary should be one short sentence. Tags should be a list of 3 short items. "
+            "category must be Other.\n\n"
+            "Filename: golem-test.txt\n"
+            "Text snippet: This is a short test of the API key and model."
         )
+        content = summarizer._chat_completion(  # type: ignore[attr-defined]
+            summarizer._metadata_system_prompt(),  # type: ignore[attr-defined]
+            prompt,
+            selected_model,
+        )
+        metadata = summarizer._parse_metadata(content, "golem-test.txt", "This is a short test of the API key and model.")  # type: ignore[attr-defined]
     except Exception as exc:
         return (False, f"{type(exc).__name__}: {exc}")
     preview = (metadata.summary or "").strip()
     if len(preview) > 120:
         preview = preview[:117] + "..."
     return (True, preview or f"OK ({provider_key})")
+
+
+def probe_provider(
+    provider: str,
+    api_key: str | None,
+    model: str = "",
+    base_url: str = "",
+) -> dict[str, Any]:
+    """Return a structured diagnostic for a provider check.
+
+    This is the richer harness used by tests and manual diagnostics. It
+    returns a dict with ``ok``, ``provider``, ``model``, ``kind``, and
+    either ``preview`` or ``error``/``detail`` fields.
+    """
+    provider_key = (provider or "heuristic").strip().lower()
+    ok, message = check_provider_connection(provider_key, api_key, model=model, base_url=base_url)
+    spec = PROVIDER_SPEC_MAP.get(provider_key)
+    payload: dict[str, Any] = {
+        "provider": provider_key,
+        "model": (model or (spec.default_model if spec else "")).strip(),
+        "kind": spec.kind if spec is not None else "unknown",
+        "ok": ok,
+    }
+    if ok:
+        payload["preview"] = message
+    else:
+        payload["error"] = message
+    return payload

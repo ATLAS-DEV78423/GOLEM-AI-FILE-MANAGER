@@ -71,6 +71,7 @@ class DesktopApp:
 
     Args:
         on_search:        Search worker. Called on a background thread.
+        on_chat:          Chat-over-files worker. Called on a background thread.
         on_open:          Open a file (called on the UI thread).
         on_reveal:        Reveal a file in the OS file manager.
         on_save_config:   Onboarding completion callback. Receives
@@ -81,6 +82,7 @@ class DesktopApp:
     def __init__(
         self,
         on_search: Callable[[str], dict[str, Any]],
+        on_chat: Callable[[str], dict[str, Any]],
         on_open: Callable[[str], None],
         on_reveal: Callable[[str], None],
         on_save_config: Callable[..., None],
@@ -115,6 +117,7 @@ class DesktopApp:
         self.popup = SearchPopup(
             self.root,
             on_search=on_search,
+            on_chat=on_chat,
             on_open=on_open,
             on_reveal=on_reveal,
             on_settings=self.show_onboarding,

@@ -313,6 +313,90 @@ CREATE TRIGGER IF NOT EXISTS files_au AFTER UPDATE ON files BEGIN
     INSERT INTO files_fts(rowid, original_filename, clean_filename, summary, tags, key_contents, category)
     VALUES (new.id, new.original_filename, new.clean_filename, new.summary, new.tags, new.key_contents, new.category);
 END;
+
+-- v2 semantic search: chunked content + content FTS5
+CREATE TABLE IF NOT EXISTS chunks (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    file_path TEXT NOT NULL,
+    chunk_index INTEGER NOT NULL,
+    text TEXT NOT NULL,
+    char_start INTEGER,
+    char_end INTEGER,
+    UNIQUE(file_path, chunk_index)
+);
+
+CREATE INDEX IF NOT EXISTS idx_chunks_path ON chunks(file_path);
+
+CREATE VIRTUAL TABLE IF NOT EXISTS chunks_fts USING fts5(
+    text,
+    file_path UNINDEXED,
+    content='chunks',
+    content_rowid='id'
+);
+
+CREATE TRIGGER IF NOT EXISTS chunks_ai AFTER INSERT ON chunks BEGIN
+    INSERT INTO chunks_fts(rowid, text, file_path) VALUES (new.id, new.text, new.file_path);
+END;
+CREATE TRIGGER IF NOT EXISTS chunks_ad AFTER DELETE ON chunks BEGIN
+    INSERT INTO chunks_fts(chunks_fts, rowid, text, file_path) VALUES('delete', old.id, old.text, old.file_path);
+END;
+CREATE TRIGGER IF NOT EXISTS chunks_au AFTER UPDATE ON chunks BEGIN
+    INSERT INTO chunks_fts(chunks_fts, rowid, text, file_path) VALUES('delete', old.id, old.text, old.file_path);
+    INSERT INTO chunks_fts(rowid, text, file_path) VALUES (new.id, new.text, new.file_path);
+END;
+
+-- v2 LLM wrapper: three-level result cache
+CREATE TABLE IF NOT EXISTS llm_cache (
+    cache_key TEXT PRIMARY KEY,
+    cache_level INTEGER NOT NULL,
+    result_json TEXT NOT NULL,
+    model_used TEXT,
+    created_at REAL DEFAULT (unixepoch()),
+    expires_at REAL,
+    hit_count INTEGER DEFAULT 0
+);
+
+CREATE INDEX IF NOT EXISTS idx_llm_cache_level ON llm_cache(cache_level);
+
+-- v2 graph brain: nodes and edges (heterogeneous graph)
+CREATE TABLE IF NOT EXISTS nodes (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    type TEXT NOT NULL,           -- 'file', 'concept', 'person', 'project', 'tag'
+    label TEXT NOT NULL,
+    file_path TEXT,               -- NULL for non-file nodes
+    embedding BLOB,               -- document-level mean embedding (serialized floats)
+    metadata TEXT,                -- JSON blob
+    created_at REAL DEFAULT (unixepoch()),
+    user_edited INTEGER DEFAULT 0
+);
+
+CREATE INDEX IF NOT EXISTS idx_nodes_file_path ON nodes(file_path);
+CREATE INDEX IF NOT EXISTS idx_nodes_type ON nodes(type);
+
+CREATE TABLE IF NOT EXISTS edges (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    source_id INTEGER NOT NULL REFERENCES nodes(id) ON DELETE CASCADE,
+    target_id INTEGER NOT NULL REFERENCES nodes(id) ON DELETE CASCADE,
+    type TEXT NOT NULL,           -- 'similar-to', 'references', 'part-of', 'mentions', 'temporal'
+    weight REAL DEFAULT 1.0,
+    auto_generated INTEGER DEFAULT 1,
+    user_confirmed INTEGER DEFAULT 0,
+    evidence TEXT,                -- JSON: why this edge was created
+    created_at REAL DEFAULT (unixepoch()),
+    UNIQUE(source_id, target_id, type)
+);
+
+CREATE INDEX IF NOT EXISTS idx_edges_source ON edges(source_id);
+CREATE INDEX IF NOT EXISTS idx_edges_target ON edges(target_id);
+CREATE INDEX IF NOT EXISTS idx_edges_type ON edges(type);
+
+-- v2 incremental indexing: skip unchanged files
+CREATE TABLE IF NOT EXISTS index_state (
+    path TEXT PRIMARY KEY,
+    content_hash TEXT,
+    indexed_at REAL,
+    status TEXT DEFAULT 'ok'
+);
 """
 
 
@@ -406,13 +490,291 @@ def _ensure_column(conn: sqlite3.Connection, table: str, column: str, ddl: str) 
 
 @contextmanager
 def transaction(conn: sqlite3.Connection):
+    is_nested = conn.in_transaction
     try:
-        conn.execute("BEGIN")
+        if not is_nested:
+            conn.execute("BEGIN")
         yield conn
-        conn.commit()
+        if not is_nested:
+            conn.commit()
     except Exception:
-        conn.rollback()
+        if not is_nested:
+            conn.rollback()
         raise
+
+
+# ---------------------------------------------------------------------------
+# v2 chunks helpers (semantic search pipeline)
+# ---------------------------------------------------------------------------
+
+
+def insert_chunks(conn: sqlite3.Connection, file_path: str, chunks: list) -> int:
+    """Replace all chunks for ``file_path`` with ``chunks``.
+
+    Args:
+        conn: Active SQLite connection.
+        file_path: Original path of the file (matches the ``chunks`` and
+            ``chunks_fts.file_path`` columns).
+        chunks: Iterable of objects exposing ``chunk_index``, ``text``,
+            ``char_start``, and ``char_end`` (the :class:`Chunk` dataclass
+            from :mod:`golem.chunker` is the canonical producer).
+
+    Returns:
+        The number of chunks inserted. The FTS5 index is kept in sync via
+        triggers defined in the schema, so callers do not need to touch
+        ``chunks_fts`` directly.
+    """
+    rows = [
+        (file_path, c.chunk_index, c.text, c.char_start, c.char_end)
+        for c in chunks
+    ]
+    with transaction(conn):
+        from . import vector_store
+
+        vector_store.delete_for_path(conn, file_path)
+        conn.execute("DELETE FROM chunks WHERE file_path = ?", (file_path,))
+        if rows:
+            conn.executemany(
+                "INSERT INTO chunks(file_path, chunk_index, text, char_start, char_end) "
+                "VALUES (?, ?, ?, ?, ?)",
+                rows,
+            )
+    return len(rows)
+
+
+def get_chunks_for_path(conn: sqlite3.Connection, file_path: str) -> list[sqlite3.Row]:
+    """Return all chunks for ``file_path`` in chunk_index order."""
+    return conn.execute(
+        "SELECT id, chunk_index, text, char_start, char_end "
+        "FROM chunks WHERE file_path = ? ORDER BY chunk_index",
+        (file_path,),
+    ).fetchall()
+
+
+def get_chunk_count(conn: sqlite3.Connection) -> int:
+    """Return the total number of chunks across all files."""
+    row = conn.execute("SELECT COUNT(*) FROM chunks").fetchone()
+    return int(row[0]) if row else 0
+
+
+def delete_chunks_for_path(conn: sqlite3.Connection, file_path: str) -> None:
+    """Remove all chunks, their FTS5 entries, and any vector rows."""
+    from . import vector_store
+
+    with transaction(conn):
+        vector_store.delete_for_path(conn, file_path)
+        conn.execute("DELETE FROM chunks WHERE file_path = ?", (file_path,))
+
+
+# ---------------------------------------------------------------------------
+# v2 incremental indexing helpers
+# ---------------------------------------------------------------------------
+
+
+def get_index_state(conn: sqlite3.Connection, path: str) -> sqlite3.Row | None:
+    """Return the stored index state for ``path`` (``None`` if never indexed)."""
+    return conn.execute(
+        "SELECT path, content_hash, indexed_at, status FROM index_state WHERE path = ?",
+        (path,),
+    ).fetchone()
+
+
+def set_index_state(
+    conn: sqlite3.Connection,
+    path: str,
+    content_hash: str,
+    status: str = "ok",
+) -> None:
+    """Upsert the index state row for ``path``."""
+    conn.execute(
+        "INSERT INTO index_state(path, content_hash, indexed_at, status) "
+        "VALUES (?, ?, unixepoch(), ?) "
+        "ON CONFLICT(path) DO UPDATE SET "
+        "  content_hash = excluded.content_hash, "
+        "  indexed_at   = excluded.indexed_at, "
+        "  status       = excluded.status",
+        (path, content_hash, status),
+    )
+
+
+def mark_index_status(conn: sqlite3.Connection, path: str, status: str) -> None:
+    """Update only the status column for ``path`` (leaves content_hash alone)."""
+    conn.execute(
+        "UPDATE index_state SET status = ? WHERE path = ?",
+        (status, path),
+    )
+
+
+# ---------------------------------------------------------------------------
+# v2 graph brain helpers (used by sub-plan C; defined now so the schema
+# is in place from day one and existing databases migrate silently).
+# ---------------------------------------------------------------------------
+
+
+def upsert_node(
+    conn: sqlite3.Connection,
+    node_type: str,
+    label: str,
+    file_path: str | None = None,
+    embedding: bytes | None = None,
+    metadata_json: str | None = None,
+    user_edited: bool = False,
+) -> int:
+    """Insert or update a graph node.
+
+    Uniqueness key is ``(type, label)`` for non-file nodes and
+    ``(type, file_path)`` for file nodes. Returns the row id.
+    """
+    if file_path is not None:
+        existing = conn.execute(
+            "SELECT id FROM nodes WHERE type = ? AND file_path = ?",
+            (node_type, file_path),
+        ).fetchone()
+    else:
+        existing = conn.execute(
+            "SELECT id FROM nodes WHERE type = ? AND label = ? AND file_path IS NULL",
+            (node_type, label),
+        ).fetchone()
+    if existing:
+        conn.execute(
+            "UPDATE nodes SET label = ?, embedding = ?, metadata = ?, "
+            "user_edited = ? WHERE id = ?",
+            (label, embedding, metadata_json, 1 if user_edited else 0, existing["id"]),
+        )
+        return int(existing["id"])
+    cur = conn.execute(
+        "INSERT INTO nodes(type, label, file_path, embedding, metadata, user_edited) "
+        "VALUES (?, ?, ?, ?, ?, ?)",
+        (node_type, label, file_path, embedding, metadata_json, 1 if user_edited else 0),
+    )
+    if cur.lastrowid is None:
+        raise RuntimeError("failed to insert node row")
+    return int(cur.lastrowid)
+
+
+def upsert_edge(
+    conn: sqlite3.Connection,
+    source_id: int,
+    target_id: int,
+    edge_type: str,
+    weight: float = 1.0,
+    auto_generated: bool = True,
+    user_confirmed: bool = False,
+    evidence_json: str | None = None,
+) -> int:
+    """Insert or update an edge. The unique key is ``(source, target, type)``."""
+    cur = conn.execute(
+        "INSERT INTO edges(source_id, target_id, type, weight, auto_generated, "
+        "user_confirmed, evidence) VALUES (?, ?, ?, ?, ?, ?, ?) "
+        "ON CONFLICT(source_id, target_id, type) DO UPDATE SET "
+        "  weight          = excluded.weight, "
+        "  auto_generated  = excluded.auto_generated, "
+        "  user_confirmed  = excluded.user_confirmed, "
+        "  evidence        = excluded.evidence",
+        (
+            source_id,
+            target_id,
+            edge_type,
+            float(weight),
+            1 if auto_generated else 0,
+            1 if user_confirmed else 0,
+            evidence_json,
+        ),
+    )
+    # On ON CONFLICT the INSERT doesn't return lastrowid, so look it up.
+    row = conn.execute(
+        "SELECT id FROM edges WHERE source_id = ? AND target_id = ? AND type = ?",
+        (source_id, target_id, edge_type),
+    ).fetchone()
+    if row is None:
+        raise RuntimeError("failed to upsert edge row")
+    return int(row["id"])
+
+
+def delete_edges_for_node(conn: sqlite3.Connection, node_id: int) -> None:
+    """Remove all edges touching ``node_id`` (cascade also handles this)."""
+    conn.execute("DELETE FROM edges WHERE source_id = ? OR target_id = ?", (node_id, node_id))
+
+
+def get_node_by_file_path(conn: sqlite3.Connection, file_path: str) -> sqlite3.Row | None:
+    return conn.execute(
+        "SELECT * FROM nodes WHERE type = 'file' AND file_path = ? LIMIT 1",
+        (file_path,),
+    ).fetchone()
+
+
+def get_neighbors(conn: sqlite3.Connection, file_path: str, depth: int = 1) -> list[sqlite3.Row]:
+    """Return all nodes reachable from ``file_path`` within ``depth`` hops.
+
+    Uses a recursive CTE so traversal works without any external graph
+    library. The starting node (depth 0) is included. ``depth=0`` returns
+    just the file node; ``depth=1`` adds direct neighbors; etc.
+    """
+    return conn.execute(
+        """
+        WITH RECURSIVE graph(node_id, depth) AS (
+            SELECT id, 0 FROM nodes WHERE type = 'file' AND file_path = ?
+            UNION ALL
+            SELECT
+                CASE WHEN e.source_id = g.node_id THEN e.target_id ELSE e.source_id END,
+                g.depth + 1
+            FROM edges e JOIN graph g ON (e.source_id = g.node_id OR e.target_id = g.node_id)
+            WHERE g.depth < ?
+        )
+        SELECT DISTINCT n.* FROM nodes n JOIN graph g ON n.id = g.node_id
+        """,
+        (file_path, int(depth)),
+    ).fetchall()
+
+
+# ---------------------------------------------------------------------------
+# v2 LLM cache helpers (used by sub-plan B)
+# ---------------------------------------------------------------------------
+
+
+def cache_get(conn: sqlite3.Connection, key: str) -> sqlite3.Row | None:
+    """Return the cached row for ``key`` if present and not expired."""
+    return conn.execute(
+        "SELECT cache_key, cache_level, result_json, model_used, created_at, "
+        "expires_at, hit_count FROM llm_cache "
+        "WHERE cache_key = ? AND (expires_at IS NULL OR expires_at > unixepoch())",
+        (key,),
+    ).fetchone()
+
+
+def cache_put(
+    conn: sqlite3.Connection,
+    key: str,
+    level: int,
+    result_json: str,
+    model_used: str | None = None,
+    ttl_seconds: int | None = None,
+) -> None:
+    """Insert or update a cache entry, optionally with a TTL (in seconds)."""
+    expires_at_expr = "NULL"
+    params: tuple
+    if ttl_seconds is not None:
+        expires_at_expr = "unixepoch() + ?"
+        params = (key, level, result_json, model_used, int(ttl_seconds))
+    else:
+        params = (key, level, result_json, model_used)
+    conn.execute(
+        f"INSERT INTO llm_cache(cache_key, cache_level, result_json, model_used, expires_at) "
+        f"VALUES (?, ?, ?, ?, {expires_at_expr}) "
+        f"ON CONFLICT(cache_key) DO UPDATE SET "
+        f"  cache_level = excluded.cache_level, "
+        f"  result_json = excluded.result_json, "
+        f"  model_used  = excluded.model_used, "
+        f"  expires_at  = excluded.expires_at",
+        params,
+    )
+
+
+def cache_increment_hit(conn: sqlite3.Connection, key: str) -> None:
+    conn.execute(
+        "UPDATE llm_cache SET hit_count = hit_count + 1 WHERE cache_key = ?",
+        (key,),
+    )
 
 
 def set_setting(conn: sqlite3.Connection, key: str, value: str) -> None:

@@ -84,6 +84,7 @@ running app untouched.
 - [Concurrency model](docs/CONCURRENCY.md)
 - [Data model](docs/DATA_MODEL.md)
 - [Operations](docs/OPERATIONS.md)
+- [Windows VM release guide](docs/WINDOWS_VM_RELEASE_GUIDE.md)
 - [Release process](docs/RELEASE.md)
 - [FAQ](docs/FAQ.md)
 

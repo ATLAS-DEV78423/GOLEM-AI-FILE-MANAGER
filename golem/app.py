@@ -32,11 +32,14 @@ from .indexer import (
 from .legal import TERMS_VERSION
 from .scanner import scan_folder
 from .search import search_with_fallback
+from .ai import CachedSummarizer
 from .summarizer import build_summarizer
 from .tray import TrayCallbacks, TrayController
 from .ui import DesktopApp
 from .undo import undo_last
 from .watcher import PollingWatcher
+from .watcher_events import is_available as _event_watcher_available
+from .watcher_events import start_event_watcher
 
 _LOG = logging.getLogger(__name__)
 _RELEASES_URL = "https://github.com/ATLAS-DEV78423/GOLEM-AI-FILE-MANAGER/releases"
@@ -143,7 +146,8 @@ class GolemApplication:
             conn.commit()
         if dry_run_override is not None:
             self.config.dry_run = dry_run_override
-        self.summarizer = build_summarizer(self.config.llm_provider, self.config.llm_api_key, self.config.llm_model, self.config.llm_base_url)
+        raw_summarizer = build_summarizer(self.config.llm_provider, self.config.llm_api_key, self.config.llm_model, self.config.llm_base_url)
+        self.summarizer = CachedSummarizer(raw_summarizer, self.db_path)
         self.command_queue: Queue[dict] = Queue()
         self.result_queue: Queue[dict] = Queue()
         self.progress_queue: Queue[dict] = Queue()
@@ -153,8 +157,10 @@ class GolemApplication:
         # produced dozens of threads racing for the SQLite WAL lock.
         self.index_queue: Queue[Path] = Queue()
         self._index_stop = threading.Event()
-        self.ui = DesktopApp(self._search, self._open_file, self._reveal_in_explorer, self.save_config)
+        self.ui = DesktopApp(self._search, self._chat, self._open_file, self._reveal_in_explorer, self.save_config)
         self.watcher: PollingWatcher | None = None
+        self._event_watcher_stop: threading.Event | None = None
+        self._event_watcher_threads: tuple[threading.Thread, threading.Thread] | None = None
         self._watcher_thread: threading.Thread | None = None
         self._hotkey_listener: object | None = None
         self._hotkeys_started = False
@@ -237,7 +243,8 @@ class GolemApplication:
         self.config.llm_base_url = base_url
         self.config.terms_accepted = True
         self.config.terms_version = TERMS_VERSION
-        self.summarizer = build_summarizer(provider, api_key, model, base_url)
+        raw_summarizer = build_summarizer(provider, api_key, model, base_url)
+        self.summarizer = CachedSummarizer(raw_summarizer, self.db_path)
         with self._connection() as conn:
             save_settings(conn, self.config.as_settings())
             conn.commit()
@@ -486,6 +493,51 @@ class GolemApplication:
         with self._connection() as conn:
             return search_with_fallback(conn, query, self.summarizer, self.config.confidence_threshold).to_payload()
 
+    def _chat(self, question: str) -> dict:
+        """Chat-over-files: answer a natural language question using indexed content.
+
+        Searches for the most relevant files, then uses the LLM summarizer
+        to answer the question from their content.
+        """
+        if not question.strip():
+            return {"status": "ok", "message": "", "answer": "", "results": []}
+        with self._connection() as conn:
+            response = search_with_fallback(conn, question, self.summarizer, self.config.confidence_threshold)
+            payload = response.to_payload()
+            results = payload.get("results", [])
+            if not results:
+                return {
+                    "status": "ok",
+                    "message": "No relevant files found to answer your question.",
+                    "answer": "",
+                    "results": [],
+                }
+            # Format context from top results
+            context_parts = []
+            for r in results[:3]:
+                name = r.get("clean_filename") or r.get("original_filename", "(unnamed)")
+                summary = r.get("summary", "")
+                tags = r.get("tags", "")
+                key_contents = r.get("key_contents", "")
+                context_parts.append(f"--- {name} ---\nSummary: {summary}\nTags: {tags}\nContent: {key_contents}")
+            context = "\n\n".join(context_parts)
+            # Ask the LLM to answer (with hasattr guard for heuristic fallback)
+            try:
+                wrapped = self.summarizer._wrapped
+                if not hasattr(wrapped, "_chat_completion"):
+                    raise AttributeError("underlying summarizer does not support chat")
+                system = "You are GOLEM, a local file intelligence assistant. Answer the user's question based only on the provided file context. Be concise, cite filenames when relevant, and say if the context doesn't contain enough information."
+                user = f"Context from my files:\n\n{context}\n\nQuestion: {question}"
+                answer = wrapped._chat_completion(system, user, wrapped.model)
+            except Exception as exc:
+                _LOG.warning("Chat answer generation failed: %s", exc)
+                answer = "I found relevant files but couldn't generate an answer. Check the search results for more details."
+            return {
+                "status": "ok",
+                "answer": answer.strip(),
+                "results": results[:5],
+            }
+
     def _open_file(self, path: str) -> None:
         try:
             validated = _validate_open_path(path, self.config)
@@ -610,26 +662,64 @@ class GolemApplication:
     def start_watcher(self) -> None:
         if not self.config.watch_enabled or not self.config.watched_folder:
             return
-        if self.watcher is not None:
+        if self.watcher is not None or self._event_watcher_stop is not None:
             return
         watched = Path(self.config.watched_folder)
         watched.mkdir(parents=True, exist_ok=True)
+
+        # Try event-driven watcher (watchdog) first; fall back to polling.
+        if _event_watcher_available():
+            stop = threading.Event()
+            try:
+                threads = start_event_watcher(watched, self._handle_watcher_event, stop)
+            except Exception as exc:
+                _LOG.warning("Event-driven watcher failed to start: %s; falling back to polling", exc)
+                threads = None
+            if threads is not None:
+                observer_thread, pump_thread = threads
+                self._event_watcher_threads = (observer_thread, pump_thread)
+                self._event_watcher_stop = stop
+                self._watcher_thread = pump_thread
+                logging.info("Event-driven watcher started (watchdog) for %s", watched)
+                return
+
         self.watcher = PollingWatcher(watched, self._handle_watcher_event)
         # start() returns a tuple (poll_thread, worker_thread); the worker
         # is the one that processes events, so it's the one we wait on.
         _poll_thread, worker_thread = self.watcher.start()
         self._watcher_thread = worker_thread
-        logging.info("Watcher started")
+        logging.info("Polling watcher started for %s", watched)
 
     def restart_watcher(self) -> None:
         self.stop_watcher()
         self.start_watcher()
 
     def stop_watcher(self) -> None:
+        if self._event_watcher_stop is not None:
+            self._event_watcher_stop.set()
+            if self._event_watcher_threads is not None:
+                observer_thread, pump_thread = self._event_watcher_threads
+                observer = getattr(observer_thread, "_golem_observer", None)
+                if observer is not None:
+                    try:
+                        observer.stop()
+                    except Exception:
+                        pass
+                try:
+                    observer_thread.join(timeout=2.0)
+                except Exception:
+                    pass
+                try:
+                    pump_thread.join(timeout=2.0)
+                except Exception:
+                    pass
+            self._event_watcher_stop = None
+            self._event_watcher_threads = None
+            logging.info("Event-driven watcher stopped")
         if self.watcher is not None:
             self.watcher.stop()
             self.watcher = None
-            self._watcher_thread = None
+        self._watcher_thread = None
 
     def _handle_watcher_event(self, path: Path) -> None:
         self.enqueue({"action": "index_file", "path": str(path)})
