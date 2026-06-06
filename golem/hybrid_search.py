@@ -25,6 +25,7 @@ If neither source returns anything, the result is ``[ ]``. The function
 never raises; bad FTS queries return ``[ ]`` and vector failures are
 swallowed inside :mod:`golem.vector_store`.
 """
+
 from __future__ import annotations
 
 import logging
@@ -106,7 +107,9 @@ def _fts_search(conn: sqlite3.Connection, query: str) -> list[dict[str, Any]]:
         # than crashing the caller.
         _LOG.warning("FTS query failed for %r: %s", query, exc)
         return []
-    return [{"file_path": r["file_path"], "text": r["text"], "bm25": float(r["rank"])} for r in rows]
+    return [
+        {"file_path": r["file_path"], "text": r["text"], "bm25": float(r["rank"])} for r in rows
+    ]
 
 
 def _key(hit: dict[str, Any]) -> str:
@@ -174,7 +177,7 @@ def search(conn: sqlite3.Connection, query: str, top_k: int = _FINAL_TOP_K) -> l
             mt = "keyword"
         else:
             mt = "semantic"
-        path = (f.get("file_path") or v.get("file_path") or "")
+        path = f.get("file_path") or v.get("file_path") or ""
         scored.append(
             (
                 rrf,

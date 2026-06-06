@@ -162,7 +162,11 @@ def _extract_xlsx(path: Path) -> str:
                             sheet_parts.append(node.text)
                             running += len(node.text)
                             if running > _MAX_EXTRACT_CHARS:
-                                logging.info("Truncating XLSX XML for %s at %d chars", path, _MAX_EXTRACT_CHARS)
+                                logging.info(
+                                    "Truncating XLSX XML for %s at %d chars",
+                                    path,
+                                    _MAX_EXTRACT_CHARS,
+                                )
                                 return " ".join(shared + sheet_parts)[:_MAX_EXTRACT_CHARS]
             return " ".join(shared + sheet_parts)
     except Exception as exc:
@@ -205,4 +209,3 @@ def extract_text(path: Path) -> str:
 
 def is_readable_text(path: Path) -> bool:
     return bool(extract_text(path).strip())
-

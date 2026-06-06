@@ -13,7 +13,9 @@ from dataclasses import dataclass
 from logging.handlers import RotatingFileHandler
 from pathlib import Path
 from queue import Queue
+from typing import Any
 
+from .ai import CachedSummarizer
 from .config import AppConfig
 from .constants import APP_NAME, APP_VERSION, default_data_dir
 from .indexer import (
@@ -32,7 +34,6 @@ from .indexer import (
 from .legal import TERMS_VERSION
 from .scanner import scan_folder
 from .search import search_with_fallback
-from .ai import CachedSummarizer
 from .summarizer import build_summarizer
 from .tray import TrayCallbacks, TrayController
 from .ui import DesktopApp
@@ -68,7 +69,9 @@ def _validate_open_path(raw: str, config) -> Path:
         raise ValueError("path contains NUL byte")
     # Reject URI schemes: anything matching <scheme>:<rest> where scheme has a colon
     lower = raw.lstrip().lower()
-    if "://" in lower or lower.startswith(("file:", "http:", "https:", "shell:", "ms-cxh:", "ms-settings:")):
+    if "://" in lower or lower.startswith(
+        ("file:", "http:", "https:", "shell:", "ms-cxh:", "ms-settings:")
+    ):
         raise ValueError("path uses a URI scheme")
     p = Path(raw)
     try:
@@ -108,12 +111,12 @@ def configure_logging(level: str = "INFO", data_dir: Path | None = None) -> None
     for handler in list(root.handlers):
         root.removeHandler(handler)
 
-    formatter = logging.Formatter(
-        "%(asctime)s [%(levelname)s] %(name)s: %(message)s"
-    )
+    formatter = logging.Formatter("%(asctime)s [%(levelname)s] %(name)s: %(message)s")
     if log_path is not None:
         try:
-            file_handler = RotatingFileHandler(log_path, maxBytes=5*1024*1024, backupCount=2, encoding="utf-8")
+            file_handler = RotatingFileHandler(
+                log_path, maxBytes=5 * 1024 * 1024, backupCount=2, encoding="utf-8"
+            )
             file_handler.setFormatter(formatter)
             root.addHandler(file_handler)
         except OSError:
@@ -146,7 +149,12 @@ class GolemApplication:
             conn.commit()
         if dry_run_override is not None:
             self.config.dry_run = dry_run_override
-        raw_summarizer = build_summarizer(self.config.llm_provider, self.config.llm_api_key, self.config.llm_model, self.config.llm_base_url)
+        raw_summarizer = build_summarizer(
+            self.config.llm_provider,
+            self.config.llm_api_key,
+            self.config.llm_model,
+            self.config.llm_base_url,
+        )
         self.summarizer = CachedSummarizer(raw_summarizer, self.db_path)
         self.command_queue: Queue[dict] = Queue()
         self.result_queue: Queue[dict] = Queue()
@@ -157,11 +165,15 @@ class GolemApplication:
         # produced dozens of threads racing for the SQLite WAL lock.
         self.index_queue: Queue[Path] = Queue()
         self._index_stop = threading.Event()
+
         # Wrap _search to match new DesktopApp signature: (query, top_k) -> list[dict]
         def _search_wrapper(query: str, top_k: int = 8) -> list[dict[str, Any]]:
             payload = self._search(query)
             return payload.get("results", [])[:top_k]
-        self.ui = DesktopApp(_search_wrapper, self._open_file, self._reveal_in_explorer, self.save_config)
+
+        self.ui = DesktopApp(
+            _search_wrapper, self._open_file, self._reveal_in_explorer, self.save_config
+        )
         self.watcher: PollingWatcher | None = None
         self._event_watcher_stop: threading.Event | None = None
         self._event_watcher_threads: tuple[threading.Thread, threading.Thread] | None = None
@@ -196,7 +208,9 @@ class GolemApplication:
         # is "owned" by the error pump. The progress pump will not clobber
         # it during this window. 0.0 means "no error in flight".
         self._status_error_until: float = 0.0
-        self._index_worker = threading.Thread(target=self._index_worker_loop, name="golem-index-worker", daemon=True)
+        self._index_worker = threading.Thread(
+            target=self._index_worker_loop, name="golem-index-worker", daemon=True
+        )
         self._index_worker.start()
         self._crash_marker = self.data_dir / ".golem_running"
         self._check_db_health()
@@ -231,12 +245,26 @@ class GolemApplication:
             yield conn
 
     def ensure_ready(self) -> bool:
-        if self.config.terms_version != TERMS_VERSION or not self.config.terms_accepted or not self.config.watched_folder or not self.config.vault_folder:
+        if (
+            self.config.terms_version != TERMS_VERSION
+            or not self.config.terms_accepted
+            or not self.config.watched_folder
+            or not self.config.vault_folder
+        ):
             self.ui.show_onboarding()
             return False
         return True
 
-    def save_config(self, watched: str, vault: str, provider: str, api_key: str, model: str, base_url: str, terms_accepted: bool) -> None:
+    def save_config(
+        self,
+        watched: str,
+        vault: str,
+        provider: str,
+        api_key: str,
+        model: str,
+        base_url: str,
+        terms_accepted: bool,
+    ) -> None:
         if not terms_accepted:
             raise ValueError("You must accept the Terms of Service to continue.")
         self.config.watched_folder = watched
@@ -318,7 +346,9 @@ class GolemApplication:
             # one-off progress tick would otherwise clobber a "⚠ ..."
             # message that the user is still trying to read.
             if not self._status_error_until or self._status_error_until < time.monotonic():
-                self.ui.set_status(f"{latest.get('current_file', '')} - {latest.get('progress', 0.0):.0%}")
+                self.ui.set_status(
+                    f"{latest.get('current_file', '')} - {latest.get('progress', 0.0):.0%}"
+                )
         self.ui.root.after(250, self._pump_progress)
 
     def _pump_errors(self) -> None:
@@ -339,9 +369,7 @@ class GolemApplication:
             self.ui.set_status(f"⚠ {message}")
             # Schedule a clear so the status doesn't stay on the error
             # forever if no further errors arrive.
-            self.ui.root.after(
-                int(self._ERROR_DISPLAY_SECONDS * 1000), self._clear_error_status
-            )
+            self.ui.root.after(int(self._ERROR_DISPLAY_SECONDS * 1000), self._clear_error_status)
         self.ui.root.after(500, self._pump_errors)
 
     _ERROR_DISPLAY_SECONDS = 6.0
@@ -397,13 +425,17 @@ class GolemApplication:
                     watched,
                     vault,
                     self.summarizer,
-                    progress=lambda p, current: self.progress_queue.put({"progress": p, "current_file": current}),
+                    progress=lambda p, current: self.progress_queue.put(
+                        {"progress": p, "current_file": current}
+                    ),
                     log=logging.info,
                     dry_run=self.config.dry_run,
                 )
             logging.info(
                 "Scan complete: %d processed, %d skipped, %d errors",
-                result.processed, result.skipped, result.errors,
+                result.processed,
+                result.skipped,
+                result.errors,
             )
             # Run FTS optimize after a large scan
             if result.processed > 100:
@@ -446,11 +478,23 @@ class GolemApplication:
                 logging.warning("Could not stat %s: %s; skipping", path, exc)
                 return
             if st.st_size > 500 * 1024 * 1024:
-                logging.warning("File %s is too large (%d MB); skipping index", path, st.st_size // (1024 * 1024))
+                logging.warning(
+                    "File %s is too large (%d MB); skipping index",
+                    path,
+                    st.st_size // (1024 * 1024),
+                )
                 return
             with self._connection() as conn:
                 from .scanner import index_one_file
-                index_one_file(conn, path, vault, self.summarizer, dry_run=self.config.dry_run, log=logging.info)
+
+                index_one_file(
+                    conn,
+                    path,
+                    vault,
+                    self.summarizer,
+                    dry_run=self.config.dry_run,
+                    log=logging.info,
+                )
             self._index_ops_since_optimize += 1
         except Exception as exc:
             logging.exception("Watcher index error for %s: %s", path, exc)
@@ -495,7 +539,9 @@ class GolemApplication:
         if not query.strip():
             return {"status": "ok", "results": [], "message": ""}
         with self._connection() as conn:
-            return search_with_fallback(conn, query, self.summarizer, self.config.confidence_threshold).to_payload()
+            return search_with_fallback(
+                conn, query, self.summarizer, self.config.confidence_threshold
+            ).to_payload()
 
     def _open_file(self, path: str) -> None:
         try:
@@ -567,6 +613,7 @@ class GolemApplication:
         """Display the About GOLEM dialog."""
         try:
             from tkinter import messagebox
+
             messagebox.showinfo(
                 "About GOLEM",
                 f"{APP_NAME} {APP_VERSION}\n\n"
@@ -632,7 +679,9 @@ class GolemApplication:
             try:
                 threads = start_event_watcher(watched, self._handle_watcher_event, stop)
             except Exception as exc:
-                _LOG.warning("Event-driven watcher failed to start: %s; falling back to polling", exc)
+                _LOG.warning(
+                    "Event-driven watcher failed to start: %s; falling back to polling", exc
+                )
                 threads = None
             if threads is not None:
                 observer_thread, pump_thread = threads
@@ -754,7 +803,7 @@ class GolemApplication:
         self.stop_watcher()
         self.tray.stop()
         # Cancel periodic maintenance
-        if hasattr(self, '_maintenance_timer_id') and self._maintenance_timer_id:
+        if hasattr(self, "_maintenance_timer_id") and self._maintenance_timer_id:
             try:
                 self.ui.root.after_cancel(self._maintenance_timer_id)
             except Exception:
@@ -799,7 +848,9 @@ class GolemApplication:
                         with self._connection() as conn:
                             ok2, msg2 = check_integrity(conn)
                             if not ok2:
-                                logging.error("Restored database also has integrity issues: %s", msg2)
+                                logging.error(
+                                    "Restored database also has integrity issues: %s", msg2
+                                )
                                 self.error_queue.put(
                                     "Database could not be repaired. Use 'Reset all settings' from the tray menu."
                                 )
@@ -920,13 +971,21 @@ def remove_autostart() -> None:
 
 def _install_autostart_windows() -> None:
     """Create a shortcut in the Windows Startup folder."""
-    startup = Path(os.getenv("APPDATA", "")) / "Microsoft" / "Windows" / "Start Menu" / "Programs" / "Startup"
+    startup = (
+        Path(os.getenv("APPDATA", ""))
+        / "Microsoft"
+        / "Windows"
+        / "Start Menu"
+        / "Programs"
+        / "Startup"
+    )
     startup.mkdir(parents=True, exist_ok=True)
     target = sys.executable if getattr(sys, "frozen", False) else sys.executable
     args = "" if getattr(sys, "frozen", False) else " -m golem"
     shortcut_path = startup / "GOLEM.lnk"
     try:
         import win32com.client
+
         shell = win32com.client.Dispatch("WScript.Shell")
         shortcut = shell.CreateShortCut(str(shortcut_path))
         shortcut.TargetPath = target
@@ -936,13 +995,20 @@ def _install_autostart_windows() -> None:
     except Exception:
         # Fallback: write a .bat file
         (startup / "GOLEM.bat").write_text(
-            f'@start "" "{target}" {args}' + '\n',
+            f'@start "" "{target}" {args}' + "\n",
             encoding="utf-8",
         )
 
 
 def _remove_autostart_windows() -> None:
-    startup = Path(os.getenv("APPDATA", "")) / "Microsoft" / "Windows" / "Start Menu" / "Programs" / "Startup"
+    startup = (
+        Path(os.getenv("APPDATA", ""))
+        / "Microsoft"
+        / "Windows"
+        / "Start Menu"
+        / "Programs"
+        / "Startup"
+    )
     for name in ("GOLEM.lnk", "GOLEM.bat"):
         (startup / name).unlink(missing_ok=True)
 
@@ -953,7 +1019,8 @@ def _install_autostart_macos() -> None:
     launch_agents.mkdir(parents=True, exist_ok=True)
     target = sys.executable if getattr(sys, "frozen", False) else "/usr/local/bin/golem"
     plist = launch_agents / "com.golem.desktop.plist"
-    plist.write_text(f"""<?xml version="1.0" encoding="UTF-8"?>
+    plist.write_text(
+        f"""<?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
@@ -969,8 +1036,11 @@ def _install_autostart_macos() -> None:
     <false/>
 </dict>
 </plist>
-""", encoding="utf-8")
+""",
+        encoding="utf-8",
+    )
     import subprocess
+
     subprocess.run(["launchctl", "load", str(plist)], capture_output=True, timeout=10)
 
 
@@ -978,6 +1048,7 @@ def _remove_autostart_macos() -> None:
     plist = Path.home() / "Library" / "LaunchAgents" / "com.golem.desktop.plist"
     if plist.exists():
         import subprocess
+
         subprocess.run(["launchctl", "unload", str(plist)], capture_output=True, timeout=10)
         plist.unlink(missing_ok=True)
 
@@ -988,13 +1059,16 @@ def _install_autostart_linux() -> None:
     autostart.mkdir(parents=True, exist_ok=True)
     target = sys.executable if getattr(sys, "frozen", False) else sys.executable
     desktop = autostart / "golem.desktop"
-    desktop.write_text(f"""[Desktop Entry]
+    desktop.write_text(
+        f"""[Desktop Entry]
 Type=Application
 Name=GOLEM
 Exec={target}
 Terminal=false
 X-GNOME-Autostart-enabled=true
-""", encoding="utf-8")
+""",
+        encoding="utf-8",
+    )
 
 
 def _remove_autostart_linux() -> None:
@@ -1016,7 +1090,9 @@ def _show_fatal_error(message: str) -> None:
 
         root = _tk.Tk()
         root.withdraw()
-        _mb.showerror(APP_NAME, f"{APP_NAME} could not start.\n\n{message}\n\nSee the log file for details.")
+        _mb.showerror(
+            APP_NAME, f"{APP_NAME} could not start.\n\n{message}\n\nSee the log file for details."
+        )
         root.destroy()
     except Exception:
         # Last-ditch: stderr is the best we can do.
@@ -1025,6 +1101,7 @@ def _show_fatal_error(message: str) -> None:
 
 def _version_string() -> str:
     from .constants import APP_NAME, APP_VERSION
+
     return f"{APP_NAME} {APP_VERSION}"
 
 
@@ -1034,6 +1111,7 @@ def _export_db(db_path: Path, dest: Path) -> int:
     Used by ``--export-db``. The destination parent must exist.
     """
     import shutil
+
     if not db_path.is_file():
         print(f"Database does not exist yet: {db_path}", file=sys.stderr)
         return 1

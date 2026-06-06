@@ -15,6 +15,7 @@ Token groups
 - ``Shadows``    — canvas-drawn drop-shadow recipes
 - ``IconSize``   — standard icon dimensions
 """
+
 from __future__ import annotations
 
 import tkinter as tk
@@ -32,64 +33,66 @@ from typing import Any, Literal
 
 @dataclass(frozen=True, slots=True)
 class _Bg:
-    canvas: str = "#0a0a0a"          # near-black, deepest layer
-    panel: str = "#111111"           # launcher window surface
-    elevated: str = "#151515"        # subtle lift
-    hover: str = "#1a1a1a"           # item hover state
-    selected: str = "#f97316"        # solid orange selected (per spec)
-    pressed: str = "#ea580c"         # pressed state
-    input: str = "#111111"           # text input fill
-    overlay: str = "#080808"         # modal scrim
-    titlebar: str = "#0a0a0a"        # window header strip
-    sidebar: str = "#121212"         # sidebar panel background
+    canvas: str = "#0a0a0a"  # near-black, deepest layer
+    panel: str = "#111111"  # launcher window surface
+    elevated: str = "#151515"  # subtle lift
+    hover: str = "#1a1a1a"  # item hover state
+    selected: str = "#f97316"  # solid orange selected (per spec)
+    pressed: str = "#ea580c"  # pressed state
+    input: str = "#111111"  # text input fill
+    overlay: str = "#080808"  # modal scrim
+    titlebar: str = "#0a0a0a"  # window header strip
+    sidebar: str = "#121212"  # sidebar panel background
 
 
 @dataclass(frozen=True, slots=True)
 class _Fg:
-    primary: str = "#f5f0eb"         # warm white (not pure white — per spec)
-    secondary: str = "#7a7370"       # metadata, paths, timestamps
-    tertiary: str = "#3d3a38"        # dividers, muted text
-    disabled: str = "#404040"        # disabled
-    on_accent: str = "#ffffff"       # white text on orange selected
-    inverse: str = "#0a0a0b"         # dark text on light surface
+    primary: str = "#f5f0eb"  # warm white (not pure white — per spec)
+    secondary: str = "#7a7370"  # metadata, paths, timestamps
+    tertiary: str = "#3d3a38"  # dividers, muted text
+    disabled: str = "#404040"  # disabled
+    on_accent: str = "#ffffff"  # white text on orange selected
+    inverse: str = "#0a0a0b"  # dark text on light surface
 
 
 @dataclass(frozen=True, slots=True)
 class _Accent:
     """Single orange #f97316 — no other accent colors anywhere."""
-    DEFAULT: str = "#f97316"         # primary orange
-    hover: str = "#fb923c"           # lighter orange
-    pressed: str = "#ea580c"         # deeper orange
-    muted: str = "#431407"           # very dark orange (15% opacity bg)
-    glow: str = "#f9731626"           # 15% alpha for focus rings (hex)
-    ring: str = "#f9731680"           # 50% alpha for focus ring borders
-    dim: str = "#f9731680"            # subtle orange elements (50% alpha)
-    glow_border: str = "#f97316"     # search bar focus glow match
+
+    DEFAULT: str = "#f97316"  # primary orange
+    hover: str = "#fb923c"  # lighter orange
+    pressed: str = "#ea580c"  # deeper orange
+    muted: str = "#431407"  # very dark orange (15% opacity bg)
+    glow: str = "#f9731626"  # 15% alpha for focus rings (hex)
+    ring: str = "#f9731680"  # 50% alpha for focus ring borders
+    dim: str = "#f9731680"  # subtle orange elements (50% alpha)
+    glow_border: str = "#f97316"  # search bar focus glow match
 
 
 @dataclass(frozen=True, slots=True)
 class _Border:
-    subtle: str = "#151515"           # internal dividers
-    DEFAULT: str = "#1a1a1a"          # standard divider
-    strong: str = "#222222"           # emphasized divider
-    focus: str = "#f97316"            # focus ring (orange)
+    subtle: str = "#151515"  # internal dividers
+    DEFAULT: str = "#1a1a1a"  # standard divider
+    strong: str = "#222222"  # emphasized divider
+    focus: str = "#f97316"  # focus ring (orange)
 
 
 @dataclass(frozen=True, slots=True)
 class _State:
-    success: str = "#22c55e"         # green
+    success: str = "#22c55e"  # green
     success_muted: str = "#0a2e1a"
-    warning: str = "#eab308"         # yellow
+    warning: str = "#eab308"  # yellow
     warning_muted: str = "#2e220a"
-    error: str = "#ef4444"           # red
+    error: str = "#ef4444"  # red
     error_muted: str = "#2e0a0a"
-    info: str = "#3b82f6"            # blue
+    info: str = "#3b82f6"  # blue
     info_muted: str = "#0a1a2e"
 
 
 @dataclass(frozen=True, slots=True)
 class _Category:
     """Minimal category differentiation — kept subdued to not compete."""
+
     finance: str = "#22c55e"
     research: str = "#3b82f6"
     design: str = "#f97316"
@@ -125,7 +128,7 @@ class Spacing:
     xl: int = 20
     xxl: int = 24
     xxxl: int = 32
-    gutter: int = 18      # standard window edge padding
+    gutter: int = 18  # standard window edge padding
 
 
 # ---------------------------------------------------------------------------
@@ -137,10 +140,10 @@ class Spacing:
 class Radii:
     none: int = 0
     sm: int = 4
-    DEFAULT: int = 8      # the standard corner (slightly larger)
+    DEFAULT: int = 8  # the standard corner (slightly larger)
     md: int = 10
     lg: int = 12
-    pill: int = 999       # for circular chips
+    pill: int = 999  # for circular chips
 
 
 # ---------------------------------------------------------------------------
@@ -153,7 +156,7 @@ class _TypeScale:
     family: str
     size: int
     weight: Literal["normal", "bold"] = "normal"
-    line_height: int = 0   # 0 = computed as 1.4 * size
+    line_height: int = 0  # 0 = computed as 1.4 * size
 
     def font(self) -> tuple[str, int, str]:
         return (self.family, self.size, self.weight)
@@ -176,11 +179,11 @@ class Typography:
     title: _TypeScale = _TypeScale("Syne", 16, "bold", 22)
     body: _TypeScale = _TypeScale("Segoe UI", 14, "normal", 20)
     body_strong: _TypeScale = _TypeScale("Segoe UI", 14, "bold", 20)
-    caption: _TypeScale = _TypeScale("DM Mono", 11, "normal", 16)    # DM Mono for labels
-    micro: _TypeScale = _TypeScale("DM Mono", 10, "normal", 14)      # DM Mono for tiny labels
+    caption: _TypeScale = _TypeScale("DM Mono", 11, "normal", 16)  # DM Mono for labels
+    micro: _TypeScale = _TypeScale("DM Mono", 10, "normal", 14)  # DM Mono for tiny labels
     code: _TypeScale = _TypeScale("DM Mono", 11, "normal", 16)
     kbd: _TypeScale = _TypeScale("DM Mono", 10, "normal", 14)
-    pill: _TypeScale = _TypeScale("DM Mono", 9, "normal", 12)        # DM Mono for pills
+    pill: _TypeScale = _TypeScale("DM Mono", 9, "normal", 12)  # DM Mono for pills
 
 
 # ---------------------------------------------------------------------------
@@ -222,9 +225,7 @@ class Shadows:
         _ShadowStep("#00000080", 28, 12),
         _ShadowStep("#000000a0", 14, 6),
     )
-    chip: tuple[_ShadowStep, ...] = (
-        _ShadowStep("#00000060", 4, 1),
-    )
+    chip: tuple[_ShadowStep, ...] = (_ShadowStep("#00000060", 4, 1),)
     glow: tuple[_ShadowStep, ...] = (
         _ShadowStep("#f9731633", 16, 0),
         _ShadowStep("#f973161a", 8, 0),
@@ -237,9 +238,7 @@ class Shadows:
         _ShadowStep("#f973161a", 16, 6),
         _ShadowStep("#00000060", 8, 4),
     )
-    surface: tuple[_ShadowStep, ...] = (
-        _ShadowStep("#00000030", 6, 2),
-    )
+    surface: tuple[_ShadowStep, ...] = (_ShadowStep("#00000030", 6, 2),)
 
 
 # ---------------------------------------------------------------------------
@@ -266,6 +265,7 @@ class IconSize:
 @dataclass(frozen=True, slots=True)
 class Gradient:
     """Pre-defined gradient values for canvas-drawn overlays."""
+
     accent_to_transparent: str = "#f97316"  # use with create_linear_gradient
     panel_to_dark: str = "#151515"
     elevated_to_dark: str = "#1a1a1a"
@@ -295,16 +295,16 @@ class Z:
 
 @dataclass(frozen=True, slots=True)
 class Size:
-    row_height: int = 56               # taller result items for launcher feel
+    row_height: int = 56  # taller result items for launcher feel
     row_height_compact: int = 44
-    input_height: int = 52             # search box height per spec
+    input_height: int = 52  # search box height per spec
     button_height: int = 36
     button_height_sm: int = 28
     icon_button: int = 32
     titlebar_height: int = 36
-    statusbar_height: int = 32         # footer bar height per spec
-    search_popup_w: int = 640          # fixed width per spec
-    search_popup_h: int = 560          # max height per spec
+    statusbar_height: int = 32  # footer bar height per spec
+    search_popup_w: int = 640  # fixed width per spec
+    search_popup_h: int = 560  # max height per spec
     search_popup_min_h: int = 200
     onboarding_w: int = 640
     onboarding_h: int = 720
@@ -334,9 +334,7 @@ Z_LAYERS = Z()
 def _make_named_font(slot: _TypeScale) -> tkfont.Font:
     name = f"golem.{slot.family}.{slot.size}.{slot.weight}"
     if name in tkfont.names():
-        tkfont.nametofont(name).configure(
-            family=slot.family, size=slot.size, weight=slot.weight
-        )
+        tkfont.nametofont(name).configure(family=slot.family, size=slot.size, weight=slot.weight)
         return tkfont.nametofont(name)
     f = tkfont.Font(name=name, family=slot.family, size=slot.size, weight=slot.weight)
     return f
@@ -385,7 +383,8 @@ def apply_theme(root: tk.Misc) -> None:
         _make_named_font(slot)
 
     # -- Base
-    style.configure(".",
+    style.configure(
+        ".",
         background=COLORS.bg.panel,
         foreground=COLORS.fg.primary,
         fieldbackground=COLORS.bg.input,
@@ -395,7 +394,8 @@ def apply_theme(root: tk.Misc) -> None:
         troughcolor=COLORS.bg.canvas,
         font=TYPOGRAPHY.body.font(),
         borderwidth=0,
-        focusthickness=0)
+        focusthickness=0,
+    )
 
     # -- Frame
     style.configure("TFrame", background=COLORS.bg.panel)
@@ -408,103 +408,174 @@ def apply_theme(root: tk.Misc) -> None:
 
     # -- Label
     style.configure("TLabel", background=COLORS.bg.panel, foreground=COLORS.fg.primary)
-    style.configure("Title.TLabel", background=COLORS.bg.panel, foreground=COLORS.fg.primary,
-                    font=TYPOGRAPHY.title.font())
-    style.configure("Display.TLabel", background=COLORS.bg.panel, foreground=COLORS.fg.primary,
-                    font=TYPOGRAPHY.display.font())
-    style.configure("Body.TLabel", background=COLORS.bg.panel, foreground=COLORS.fg.primary,
-                    font=TYPOGRAPHY.body.font())
-    style.configure("BodyStrong.TLabel", background=COLORS.bg.panel, foreground=COLORS.fg.primary,
-                    font=TYPOGRAPHY.body_strong.font())
-    style.configure("Caption.TLabel", background=COLORS.bg.panel, foreground=COLORS.fg.secondary,
-                    font=TYPOGRAPHY.caption.font())
-    style.configure("Micro.TLabel", background=COLORS.bg.panel, foreground=COLORS.fg.tertiary,
-                    font=TYPOGRAPHY.micro.font())
-    style.configure("Kbd.TLabel", background=COLORS.bg.elevated, foreground=COLORS.fg.secondary,
-                    font=TYPOGRAPHY.kbd.font())
-    style.configure("Pill.TLabel", background=COLORS.bg.elevated, foreground=COLORS.fg.secondary,
-                    font=TYPOGRAPHY.pill.font())
+    style.configure(
+        "Title.TLabel",
+        background=COLORS.bg.panel,
+        foreground=COLORS.fg.primary,
+        font=TYPOGRAPHY.title.font(),
+    )
+    style.configure(
+        "Display.TLabel",
+        background=COLORS.bg.panel,
+        foreground=COLORS.fg.primary,
+        font=TYPOGRAPHY.display.font(),
+    )
+    style.configure(
+        "Body.TLabel",
+        background=COLORS.bg.panel,
+        foreground=COLORS.fg.primary,
+        font=TYPOGRAPHY.body.font(),
+    )
+    style.configure(
+        "BodyStrong.TLabel",
+        background=COLORS.bg.panel,
+        foreground=COLORS.fg.primary,
+        font=TYPOGRAPHY.body_strong.font(),
+    )
+    style.configure(
+        "Caption.TLabel",
+        background=COLORS.bg.panel,
+        foreground=COLORS.fg.secondary,
+        font=TYPOGRAPHY.caption.font(),
+    )
+    style.configure(
+        "Micro.TLabel",
+        background=COLORS.bg.panel,
+        foreground=COLORS.fg.tertiary,
+        font=TYPOGRAPHY.micro.font(),
+    )
+    style.configure(
+        "Kbd.TLabel",
+        background=COLORS.bg.elevated,
+        foreground=COLORS.fg.secondary,
+        font=TYPOGRAPHY.kbd.font(),
+    )
+    style.configure(
+        "Pill.TLabel",
+        background=COLORS.bg.elevated,
+        foreground=COLORS.fg.secondary,
+        font=TYPOGRAPHY.pill.font(),
+    )
     style.configure("Success.TLabel", background=COLORS.bg.panel, foreground=COLORS.state.success)
     style.configure("Error.TLabel", background=COLORS.bg.panel, foreground=COLORS.state.error)
     style.configure("Warning.TLabel", background=COLORS.bg.panel, foreground=COLORS.state.warning)
 
     # -- Button
-    style.configure("TButton",
+    style.configure(
+        "TButton",
         background=COLORS.bg.elevated,
         foreground=COLORS.fg.primary,
         bordercolor=COLORS.border.DEFAULT,
-        borderwidth=1, focusthickness=0, relief="flat",
+        borderwidth=1,
+        focusthickness=0,
+        relief="flat",
         padding=(SPACING.md, SPACING.xs),
-        font=TYPOGRAPHY.body.font())
-    style.map("TButton",
-        background=[("active", COLORS.bg.hover), ("pressed", COLORS.bg.pressed),
-                    ("disabled", COLORS.bg.panel)],
+        font=TYPOGRAPHY.body.font(),
+    )
+    style.map(
+        "TButton",
+        background=[
+            ("active", COLORS.bg.hover),
+            ("pressed", COLORS.bg.pressed),
+            ("disabled", COLORS.bg.panel),
+        ],
         foreground=[("disabled", COLORS.fg.disabled)],
-        bordercolor=[("focus", COLORS.border.focus)])
+        bordercolor=[("focus", COLORS.border.focus)],
+    )
 
-    style.configure("Primary.TButton",
+    style.configure(
+        "Primary.TButton",
         background=COLORS.accent.DEFAULT,
         foreground=COLORS.fg.on_accent,
         bordercolor=COLORS.accent.DEFAULT,
-        borderwidth=1, relief="flat",
+        borderwidth=1,
+        relief="flat",
         padding=(SPACING.xl, SPACING.sm),
-        font=TYPOGRAPHY.body_strong.font())
-    style.map("Primary.TButton",
-        background=[("active", COLORS.accent.hover), ("pressed", COLORS.accent.pressed),
-                    ("disabled", COLORS.accent.muted)],
+        font=TYPOGRAPHY.body_strong.font(),
+    )
+    style.map(
+        "Primary.TButton",
+        background=[
+            ("active", COLORS.accent.hover),
+            ("pressed", COLORS.accent.pressed),
+            ("disabled", COLORS.accent.muted),
+        ],
         foreground=[("disabled", COLORS.fg.disabled)],
-        bordercolor=[("focus", COLORS.accent.ring)])
+        bordercolor=[("focus", COLORS.accent.ring)],
+    )
 
-    style.configure("Ghost.TButton",
+    style.configure(
+        "Ghost.TButton",
         background=COLORS.bg.panel,
         foreground=COLORS.fg.secondary,
         bordercolor=COLORS.border.subtle,
-        borderwidth=1, relief="flat",
+        borderwidth=1,
+        relief="flat",
         padding=(SPACING.md, SPACING.xs),
-        font=TYPOGRAPHY.body.font())
-    style.map("Ghost.TButton",
+        font=TYPOGRAPHY.body.font(),
+    )
+    style.map(
+        "Ghost.TButton",
         background=[("active", COLORS.bg.hover), ("pressed", COLORS.bg.pressed)],
-        foreground=[("active", COLORS.fg.primary)])
+        foreground=[("active", COLORS.fg.primary)],
+    )
 
     # -- Entry (search bar)
-    style.configure("TEntry",
+    style.configure(
+        "TEntry",
         fieldbackground=COLORS.bg.input,
         foreground=COLORS.fg.primary,
         insertcolor=COLORS.accent.DEFAULT,
         bordercolor=COLORS.border.DEFAULT,
         lightcolor=COLORS.bg.input,
         darkcolor=COLORS.bg.input,
-        borderwidth=1, relief="flat",
-        padding=(SPACING.sm, SPACING.sm))
-    style.map("TEntry",
+        borderwidth=1,
+        relief="flat",
+        padding=(SPACING.sm, SPACING.sm),
+    )
+    style.map(
+        "TEntry",
         bordercolor=[("focus", COLORS.accent.DEFAULT)],
         lightcolor=[("focus", COLORS.bg.input)],
-        darkcolor=[("focus", COLORS.bg.input)])
+        darkcolor=[("focus", COLORS.bg.input)],
+    )
 
     # -- SearchBar.TEntry — special entry for the search popup with orange glow
-    style.configure("SearchBar.TEntry",
+    style.configure(
+        "SearchBar.TEntry",
         fieldbackground=COLORS.bg.input,
         foreground=COLORS.fg.primary,
         insertcolor=COLORS.accent.DEFAULT,
         bordercolor=COLORS.border.DEFAULT,
         lightcolor=COLORS.bg.input,
         darkcolor=COLORS.bg.input,
-        borderwidth=1, relief="flat",
-        padding=(SPACING.md, SPACING.sm))
-    style.map("SearchBar.TEntry",
+        borderwidth=1,
+        relief="flat",
+        padding=(SPACING.md, SPACING.sm),
+    )
+    style.map(
+        "SearchBar.TEntry",
         bordercolor=[("focus", COLORS.accent.glow_border)],
         lightcolor=[("focus", COLORS.bg.input)],
-        darkcolor=[("focus", COLORS.bg.input)])
+        darkcolor=[("focus", COLORS.bg.input)],
+    )
 
     # -- Scrollbar
-    style.configure("Vertical.TScrollbar",
+    style.configure(
+        "Vertical.TScrollbar",
         background=COLORS.bg.panel,
         troughcolor=COLORS.bg.panel,
         bordercolor=COLORS.bg.panel,
         arrowcolor=COLORS.fg.tertiary,
-        gripcount=0, borderwidth=0, relief="flat", width=6)
-    style.map("Vertical.TScrollbar",
-        background=[("active", COLORS.bg.hover), ("pressed", COLORS.bg.pressed)])
+        gripcount=0,
+        borderwidth=0,
+        relief="flat",
+        width=6,
+    )
+    style.map(
+        "Vertical.TScrollbar",
+        background=[("active", COLORS.bg.hover), ("pressed", COLORS.bg.pressed)],
+    )
 
     # -- Separator
     style.configure("TSeparator", background=COLORS.border.subtle)
@@ -528,29 +599,38 @@ def apply_theme(root: tk.Misc) -> None:
 
 
 def ease_out_cubic(t: float) -> float:
-    if t <= 0.0: return 0.0
-    if t >= 1.0: return 1.0
+    if t <= 0.0:
+        return 0.0
+    if t >= 1.0:
+        return 1.0
     inv = 1.0 - t
     return 1.0 - inv * inv * inv
 
 
 def ease_in_cubic(t: float) -> float:
-    if t <= 0.0: return 0.0
-    if t >= 1.0: return 1.0
+    if t <= 0.0:
+        return 0.0
+    if t >= 1.0:
+        return 1.0
     return t * t * t
 
 
 def ease_in_out_cubic(t: float) -> float:
-    if t <= 0.0: return 0.0
-    if t >= 1.0: return 1.0
-    if t < 0.5: return 4.0 * t * t * t
+    if t <= 0.0:
+        return 0.0
+    if t >= 1.0:
+        return 1.0
+    if t < 0.5:
+        return 4.0 * t * t * t
     f = 2.0 * t - 2.0
     return 0.5 * f * f * f + 1.0
 
 
 def ease_out_back(t: float, s: float = 1.70158) -> float:
-    if t <= 0.0: return 0.0
-    if t >= 1.0: return 1.0
+    if t <= 0.0:
+        return 0.0
+    if t >= 1.0:
+        return 1.0
     f = t - 1.0
     return f * f * ((s + 1.0) * f + s) + 1.0
 

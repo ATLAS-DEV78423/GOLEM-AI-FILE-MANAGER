@@ -14,6 +14,7 @@ query text via :mod:`golem.embeddings` and then calls
 ``search_by_embedding``. If the embedding model is unavailable, this
 returns ``[ ]`` — semantic search is silently disabled.
 """
+
 from __future__ import annotations
 
 import logging
@@ -26,7 +27,7 @@ _LOG = logging.getLogger(__name__)
 _DIM = 384
 
 try:  # pragma: no cover - exercised on machines with the extension
-    import sqlite_vec  # type: ignore
+    import sqlite_vec
 
     _HAS_VEC = True
 except ImportError:  # pragma: no cover - default case
@@ -108,8 +109,7 @@ def delete_for_path(conn, file_path: str) -> None:
     _ensure_schema(conn)
     try:
         conn.execute(
-            "DELETE FROM vec_chunks WHERE chunk_id IN "
-            "(SELECT id FROM chunks WHERE file_path = ?)",
+            "DELETE FROM vec_chunks WHERE chunk_id IN (SELECT id FROM chunks WHERE file_path = ?)",
             (file_path,),
         )
     except Exception as exc:
@@ -156,7 +156,7 @@ def search_by_embedding(
     chunk_ids = [r[0] for r in rows]
     placeholders = ",".join("?" for _ in chunk_ids)
     chunks = conn.execute(
-        f"SELECT id, file_path, text FROM chunks WHERE id IN ({placeholders})",
+        f"SELECT id, file_path, text FROM chunks WHERE id IN ({placeholders})",  # noqa: S608
         chunk_ids,
     ).fetchall()
     by_id = {c["id"]: dict(c) for c in chunks}

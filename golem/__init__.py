@@ -1,2 +1,1 @@
 """GOLEM package."""
-

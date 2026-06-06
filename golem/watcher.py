@@ -53,8 +53,12 @@ class PollingWatcher:
     def start(self) -> tuple[threading.Thread, threading.Thread]:
         """Start the poll and worker threads. Returns (poll_thread, worker_thread)."""
         self._snapshot_known()
-        self._poll_thread = threading.Thread(target=self._run_poll, name="golem-watcher-poll", daemon=True)
-        self._worker_thread = threading.Thread(target=self._run_worker, name="golem-watcher-worker", daemon=True)
+        self._poll_thread = threading.Thread(
+            target=self._run_poll, name="golem-watcher-poll", daemon=True
+        )
+        self._worker_thread = threading.Thread(
+            target=self._run_worker, name="golem-watcher-worker", daemon=True
+        )
         self._poll_thread.start()
         self._worker_thread.start()
         return self._poll_thread, self._worker_thread

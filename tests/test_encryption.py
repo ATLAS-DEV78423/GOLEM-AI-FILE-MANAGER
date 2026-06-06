@@ -8,6 +8,7 @@ Covers:
   - get_settings/save_settings roundtrip through the DB
   - Machine secret stability
 """
+
 from __future__ import annotations
 
 import base64
@@ -24,6 +25,7 @@ class EncryptionTests(unittest.TestCase):
         # Import from indexer — the module-level initialization makes
         # it safe to call multiple times.
         from golem import indexer as idx
+
         self.mod = idx
 
     # ------------------------------------------------------------------
@@ -54,7 +56,7 @@ class EncryptionTests(unittest.TestCase):
         if not self.mod._check_fernet():
             self.skipTest("cryptography package not available")
         protected = self.mod._protect_fernet("secret-value")
-        payload = protected[len("nekrypt:"):]
+        payload = protected[len("nekrypt:") :]
         # Corrupt the last few characters
         corrupted = payload[:-1] + ("X" if payload[-1:] != "X" else "Y")
         corrupted_value = "nekrypt:" + corrupted

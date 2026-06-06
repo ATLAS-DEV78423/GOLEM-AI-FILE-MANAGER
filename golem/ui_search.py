@@ -20,6 +20,7 @@ Layout
     │  ● 4,218 files · indexed just now   ↑↓ ↵ esc │  ← footer bar
     └──────────────────────────────────────────────┘
 """
+
 from __future__ import annotations
 
 import logging
@@ -36,8 +37,8 @@ from .ui_components import (
     file_type_emoji,
     file_type_from_name,
 )
-from .ui_theme import COLORS, SIZE, SPACING, TYPOGRAPHY
-from .ui_window import place_at_cursor, strip_window_chrome
+from .ui_theme import COLORS, SIZE, SPACING
+from .ui_window import place_at_cursor
 
 _LOG = logging.getLogger(__name__)
 
@@ -47,6 +48,7 @@ _LOG = logging.getLogger(__name__)
 @dataclass(slots=True)
 class SearchResult:
     """A single search result, matching the spec's SearchResult fields."""
+
     file_path: str = ""
     file_name: str = ""
     file_type: str = ""
@@ -57,12 +59,11 @@ class SearchResult:
     group: str = "FILES"
 
 
-
 def _truncate_path(path: str, max_len: int = 48) -> str:
     """Truncate a path with ellipsis on the left: …/Meetings/file.md"""
     if len(path) <= max_len:
         return path
-    return "…" + path[-(max_len - 1):]
+    return "…" + path[-(max_len - 1) :]
 
 
 # ── SearchPopupConfig ──────────────────────────────────────────────
@@ -72,11 +73,11 @@ def _truncate_path(path: str, max_len: int = 48) -> str:
 class SearchPopupConfig:
     width: int = SIZE.search_popup_w
     height: int = SIZE.search_popup_h
-    debounce_ms: int = 150           # per spec: 150ms
-    min_query_length: int = 2        # per spec: 2 characters
+    debounce_ms: int = 150  # per spec: 150ms
+    min_query_length: int = 2  # per spec: 2 characters
     placeholder: str = "Describe what you're looking for\u2026"
-    max_visible_results: int = 8      # per spec: 8 items before scroll
-    max_window_height: int = 560     # per spec
+    max_visible_results: int = 8  # per spec: 8 items before scroll
+    max_window_height: int = 560  # per spec
     top_k: int = 8
 
 
@@ -235,11 +236,16 @@ class SearchPopup:
         results_outer.pack(fill="both", expand=True)
 
         self._results_canvas = tk.Canvas(
-            results_outer, bg=COLORS.bg.panel, bd=0, highlightthickness=0,
+            results_outer,
+            bg=COLORS.bg.panel,
+            bd=0,
+            highlightthickness=0,
             takefocus=0,
         )
         self._scrollbar = ttk.Scrollbar(
-            results_outer, orient="vertical", command=self._on_scrollbar,
+            results_outer,
+            orient="vertical",
+            command=self._on_scrollbar,
             style="Vertical.TScrollbar",
         )
         self._results_canvas.configure(yscrollcommand=self._scrollbar.set)
@@ -249,11 +255,17 @@ class SearchPopup:
         # Frame inside canvas for results
         self._results_frame = tk.Frame(self._results_canvas, bg=COLORS.bg.panel)
         self._window_id = self._results_canvas.create_window(
-            0, 0, window=self._results_frame, anchor="nw", tags="inner",
+            0,
+            0,
+            window=self._results_frame,
+            anchor="nw",
+            tags="inner",
         )
 
         def _configure_inner(_e: tk.Event) -> None:
-            self._results_canvas.itemconfig(self._window_id, width=self._results_canvas.winfo_width())
+            self._results_canvas.itemconfig(
+                self._window_id, width=self._results_canvas.winfo_width()
+            )
 
         self._results_canvas.bind("<Configure>", _configure_inner)
         self._results_frame.bind("<Configure>", self._on_frame_configure)
@@ -276,6 +288,7 @@ class SearchPopup:
 
         # Search icon (magnifier)
         from .ui_icons import get_icon
+
         icon_img = get_icon("search", size=18, color=COLORS.accent.DEFAULT, master=search_frame)
         icon_lbl = tk.Label(search_frame, image=icon_img, bg=COLORS.bg.panel, cursor="xterm")
         icon_lbl.image = icon_img
@@ -320,6 +333,7 @@ class SearchPopup:
 
         # Shortcut badge (ESC to close)
         from .ui_components import KeyboardHint
+
         hint = KeyboardHint(search_frame, "esc", style="Kbd.TLabel")
         hint.pack(side="right", padx=(SPACING.sm, 0))
 
@@ -339,14 +353,17 @@ class SearchPopup:
         status_frame = tk.Frame(inner, bg=COLORS.bg.panel)
         status_frame.pack(side="left")
         # Green dot
-        dot_canvas = tk.Canvas(status_frame, width=8, height=8,
-                               bg=COLORS.bg.panel, highlightthickness=0, bd=0)
+        dot_canvas = tk.Canvas(
+            status_frame, width=8, height=8, bg=COLORS.bg.panel, highlightthickness=0, bd=0
+        )
         dot_canvas.create_oval(1, 1, 7, 7, fill="#22c55e", outline="")
         dot_canvas.pack(side="left", padx=(0, SPACING.xs))
         self._status_label = tk.Label(
-            status_frame, text="\u25cf 4,218 files \u00b7 indexed just now",
+            status_frame,
+            text="\u25cf 4,218 files \u00b7 indexed just now",
             font=("Consolas", 11, "normal"),
-            fg=COLORS.fg.tertiary, bg=COLORS.bg.panel,
+            fg=COLORS.fg.tertiary,
+            bg=COLORS.bg.panel,
         )
         self._status_label.pack(side="left")
 
@@ -355,7 +372,8 @@ class SearchPopup:
             inner,
             text="\u2191\u2193 navigate  \u00b7  \u21b5 open  \u00b7  esc close",
             font=("Consolas", 11, "normal"),
-            fg=COLORS.fg.tertiary, bg=COLORS.bg.panel,
+            fg=COLORS.fg.tertiary,
+            bg=COLORS.bg.panel,
         )
         self._hints_label.pack(side="right")
 
@@ -405,9 +423,20 @@ class SearchPopup:
     # ── Key handling ───────────────────────────────────────────────
 
     def _on_keyrelease(self, event: tk.Event) -> None:
-        if event.keysym in ("Up", "Down", "Left", "Right", "Home", "End",
-                            "Return", "Escape", "Shift_L", "Shift_R",
-                            "Control_L", "Control_R"):
+        if event.keysym in (
+            "Up",
+            "Down",
+            "Left",
+            "Right",
+            "Home",
+            "End",
+            "Return",
+            "Escape",
+            "Shift_L",
+            "Shift_R",
+            "Control_L",
+            "Control_R",
+        ):
             return
         if self._query_var is None:
             return
@@ -420,7 +449,8 @@ class SearchPopup:
         q = self._query_var.get()
         if len(q) >= self.config.min_query_length and not self._placeholder_active:
             self._search_after_id = self.root.after(
-                self.config.debounce_ms, lambda: self._kick_search(q),
+                self.config.debounce_ms,
+                lambda: self._kick_search(q),
             )
         else:
             self._show_idle_state()
@@ -485,10 +515,13 @@ class SearchPopup:
             self._render_results()
         elif args[0] == "scroll":
             amount = int(args[1])
-            self._scroll_offset = max(0, min(
-                self._scroll_offset + amount,
-                max(0, len(self.results) - self._items_per_page),
-            ))
+            self._scroll_offset = max(
+                0,
+                min(
+                    self._scroll_offset + amount,
+                    max(0, len(self.results) - self._items_per_page),
+                ),
+            )
             self._render_results()
 
     def _sync_scrollbar(self) -> None:
@@ -504,13 +537,20 @@ class SearchPopup:
             self._scrollbar.set(0.0, 1.0)
 
     def _on_mousewheel(self, event: tk.Event) -> None:
-        delta = -1 if event.delta > 0 else 1 if hasattr(event, "delta") else (
-            -1 if event.num == 4 else 1
+        delta = (
+            -1
+            if event.delta > 0
+            else 1
+            if hasattr(event, "delta")
+            else (-1 if event.num == 4 else 1)
         )
-        self._scroll_offset = max(0, min(
-            self._scroll_offset + delta * 3,
-            max(0, len(self.results) - self._items_per_page),
-        ))
+        self._scroll_offset = max(
+            0,
+            min(
+                self._scroll_offset + delta * 3,
+                max(0, len(self.results) - self._items_per_page),
+            ),
+        )
         self._render_results()
         self._sync_scrollbar()
 
@@ -543,16 +583,21 @@ class SearchPopup:
         for r in raw:
             name = str(r.get("clean_filename") or r.get("original_filename") or "")
             ftype = file_type_from_name(name)
-            out.append(SearchResult(
-                file_path=str(r.get("current_path") or r.get("original_path") or ""),
-                file_name=name,
-                file_type=ftype,
-                snippet=str(r.get("chunk_text") or r.get("summary") or ""),
-                match_type=str(r.get("match_type") or ""),
-                matched_terms=r.get("matched_terms", r.get("match_type", "").split(",") if r.get("match_type") else []),
-                modified_at=str(r.get("modified_at") or ""),
-                group=str(r.get("group") or (r.get("category") or "FILES").upper()),
-            ))
+            out.append(
+                SearchResult(
+                    file_path=str(r.get("current_path") or r.get("original_path") or ""),
+                    file_name=name,
+                    file_type=ftype,
+                    snippet=str(r.get("chunk_text") or r.get("summary") or ""),
+                    match_type=str(r.get("match_type") or ""),
+                    matched_terms=r.get(
+                        "matched_terms",
+                        r.get("match_type", "").split(",") if r.get("match_type") else [],
+                    ),
+                    modified_at=str(r.get("modified_at") or ""),
+                    group=str(r.get("group") or (r.get("category") or "FILES").upper()),
+                )
+            )
         return out
 
     def _pump_results(self) -> None:
@@ -620,9 +665,11 @@ class SearchPopup:
                     label_frame = tk.Frame(self._results_frame, bg=COLORS.bg.panel)
                     label_frame.pack(fill="x", padx=SPACING.lg, pady=(SPACING.sm, SPACING.xxs))
                     lbl = tk.Label(
-                        label_frame, text=group_name.upper(),
+                        label_frame,
+                        text=group_name.upper(),
                         font=("Consolas", 10, "normal"),
-                        fg="#f97316", bg=COLORS.bg.panel,
+                        fg="#f97316",
+                        bg=COLORS.bg.panel,
                     )
                     lbl.pack(anchor="w")
 
@@ -665,9 +712,11 @@ class SearchPopup:
         icon_frame = tk.Frame(row_top, bg=item_frame["bg"])
         icon_frame.pack(side="left", padx=(0, SPACING.sm))
         icon_lbl = tk.Label(
-            icon_frame, text=emoji,
+            icon_frame,
+            text=emoji,
             font=("Segoe UI", 13, "normal"),
-            bg=item_frame["bg"], fg=fg_primary,
+            bg=item_frame["bg"],
+            fg=fg_primary,
         )
         icon_lbl.pack()
 
@@ -677,8 +726,12 @@ class SearchPopup:
 
         # File name with term highlighting
         name_lbl = self._make_highlighted_label(
-            text_col, item.file_name, item.matched_terms,
-            is_selected, fg_primary, fg_highlight,
+            text_col,
+            item.file_name,
+            item.matched_terms,
+            is_selected,
+            fg_primary,
+            fg_highlight,
         )
         name_lbl.pack(anchor="w")
 
@@ -686,7 +739,8 @@ class SearchPopup:
         if item.file_path:
             path_text = _truncate_path(item.file_path)
             path_lbl = tk.Label(
-                text_col, text=path_text,
+                text_col,
+                text=path_text,
                 font=("Consolas", 10, "normal"),
                 fg=fg_secondary if not is_selected else "#f0dcc8",
                 bg=item_frame["bg"],
@@ -717,30 +771,39 @@ class SearchPopup:
                 pill_border = pbdr
 
             # Draw pill on a tiny canvas
-            pill_canvas = tk.Canvas(pill_frame, width=60, height=20,
-                                    bg=item_frame["bg"], highlightthickness=0, bd=0)
+            pill_canvas = tk.Canvas(
+                pill_frame, width=60, height=20, bg=item_frame["bg"], highlightthickness=0, bd=0
+            )
             pill_canvas.pack()
             label = item.match_type.upper()
             pw = max(42, len(label) * 6 + 16)
             pill_canvas.configure(width=pw)
-            pill_canvas.create_rectangle(0, 0, pw, 20,
-                                         fill=pill_bg, outline=pill_border, width=1)
-            pill_canvas.create_text(pw // 2, 10, text=label,
-                                    fill=pill_fg, font=("Consolas", 9, "normal"),
-                                    anchor="center")
+            pill_canvas.create_rectangle(0, 0, pw, 20, fill=pill_bg, outline=pill_border, width=1)
+            pill_canvas.create_text(
+                pw // 2,
+                10,
+                text=label,
+                fill=pill_fg,
+                font=("Consolas", 9, "normal"),
+                anchor="center",
+            )
 
         # ── Bottom row: snippet ──
         if item.snippet:
             snippet_text = item.snippet[:100] + ("\u2026" if len(item.snippet) > 100 else "")
             snippet_lbl = self._make_highlighted_label(
-                item_frame, snippet_text, item.matched_terms,
-                is_selected, fg_secondary if not is_selected else "#f0dcc8",
+                item_frame,
+                snippet_text,
+                item.matched_terms,
+                is_selected,
+                fg_secondary if not is_selected else "#f0dcc8",
                 fg_highlight if not is_selected else "#ffffff",
             )
             snippet_lbl.pack(anchor="w", padx=SPACING.sm, pady=(0, SPACING.xxs))
 
         # Hover effects
         if not is_selected:
+
             def _on_enter(e: tk.Event, f=item_frame, bg=COLORS.bg.hover) -> None:
                 f.configure(bg=bg)
                 for c in f.winfo_children():
@@ -790,13 +853,17 @@ class SearchPopup:
         fg_highlight: str,
     ) -> tk.Frame:
         """Create a label frame with matched terms highlighted in the accent color."""
-        frame = tk.Frame(parent, bg=parent["bg"] if hasattr(parent, "__getitem__") else COLORS.bg.panel)
+        frame = tk.Frame(
+            parent, bg=parent["bg"] if hasattr(parent, "__getitem__") else COLORS.bg.panel
+        )
 
         if not matched_terms:
             lbl = tk.Label(
-                frame, text=text,
+                frame,
+                text=text,
                 font=("Segoe UI", 13, "normal" if not is_selected else "bold"),
-                fg=fg_default, bg=frame["bg"],
+                fg=fg_default,
+                bg=frame["bg"],
                 anchor="w",
             )
             lbl.pack(anchor="w")
@@ -805,12 +872,15 @@ class SearchPopup:
         # Simple highlight: split by matched terms and create colored segments
         # This is a simplified approach - for a full implementation, use regex
         import re
+
         terms = [t for t in matched_terms if t]
         if not terms:
             lbl = tk.Label(
-                frame, text=text,
+                frame,
+                text=text,
                 font=("Segoe UI", 13, "normal"),
-                fg=fg_default, bg=frame["bg"],
+                fg=fg_default,
+                bg=frame["bg"],
                 anchor="w",
             )
             lbl.pack(anchor="w")
@@ -825,7 +895,8 @@ class SearchPopup:
             if not part:
                 continue
             lbl = tk.Label(
-                frame, text=part,
+                frame,
+                text=part,
                 font=("Segoe UI", 13, "bold" if is_match else "normal"),
                 fg=fg_highlight if is_match else fg_default,
                 bg=frame["bg"],
@@ -859,6 +930,7 @@ class SearchPopup:
         icon_img = None
         try:
             from .ui_icons import get_icon
+
             icon_img = get_icon("search", size=32, color=COLORS.fg.tertiary, master=center)
         except Exception:
             pass
@@ -868,19 +940,28 @@ class SearchPopup:
             icon_lbl.image = icon_img
             icon_lbl.pack(pady=(0, SPACING.md))
         else:
-            tk.Label(center, text="\U0001F50D", font=("Segoe UI", 24),
-                     bg=COLORS.bg.panel, fg=COLORS.fg.tertiary).pack(pady=(0, SPACING.md))
+            tk.Label(
+                center,
+                text="\U0001f50d",
+                font=("Segoe UI", 24),
+                bg=COLORS.bg.panel,
+                fg=COLORS.fg.tertiary,
+            ).pack(pady=(0, SPACING.md))
 
         tk.Label(
-            center, text="Describe what you're looking for",
+            center,
+            text="Describe what you're looking for",
             font=("Segoe UI", 14, "normal"),
-            fg=COLORS.fg.secondary, bg=COLORS.bg.panel,
+            fg=COLORS.fg.secondary,
+            bg=COLORS.bg.panel,
         ).pack()
 
         tk.Label(
-            center, text="GOLEM searches by meaning, not just filenames",
+            center,
+            text="GOLEM searches by meaning, not just filenames",
             font=("Segoe UI", 11, "normal"),
-            fg=COLORS.fg.tertiary, bg=COLORS.bg.panel,
+            fg=COLORS.fg.tertiary,
+            bg=COLORS.bg.panel,
         ).pack(pady=(SPACING.sm, 0))
 
         self._update_footer_status()
@@ -897,23 +978,29 @@ class SearchPopup:
 
         try:
             from .ui_icons import get_icon
+
             icon_img = get_icon("search", size=32, color=COLORS.fg.tertiary, master=center)
             icon_lbl = tk.Label(center, image=icon_img, bg=COLORS.bg.panel)
             icon_lbl.image = icon_img
             icon_lbl.pack(pady=(0, SPACING.md))
         except Exception:
-            tk.Label(center, text="\U0001F50D", font=("Segoe UI", 24),
-                     bg=COLORS.bg.panel).pack(pady=(0, SPACING.md))
+            tk.Label(center, text="\U0001f50d", font=("Segoe UI", 24), bg=COLORS.bg.panel).pack(
+                pady=(0, SPACING.md)
+            )
 
         tk.Label(
-            center, text=headline,
+            center,
+            text=headline,
             font=("Segoe UI", 14, "normal"),
-            fg=COLORS.fg.secondary, bg=COLORS.bg.panel,
+            fg=COLORS.fg.secondary,
+            bg=COLORS.bg.panel,
         ).pack()
         tk.Label(
-            center, text=body,
+            center,
+            text=body,
             font=("Segoe UI", 11, "normal"),
-            fg=COLORS.fg.tertiary, bg=COLORS.bg.panel,
+            fg=COLORS.fg.tertiary,
+            bg=COLORS.bg.panel,
         ).pack(pady=(SPACING.xs, 0))
 
         self._update_footer_status()

@@ -20,6 +20,7 @@ Heavy import rule: ``sentence_transformers`` and its transitive deps
 ``try/except ImportError`` so this module is safe to import even on
 machines that do not have the optional ``[semantic]`` extras installed.
 """
+
 from __future__ import annotations
 
 import hashlib
@@ -31,15 +32,15 @@ _LOG = logging.getLogger(__name__)
 _DIM = 384
 
 try:  # pragma: no cover - only present when [semantic] extras are installed
-    from sentence_transformers import SentenceTransformer  # type: ignore
+    from sentence_transformers import SentenceTransformer
 
     _HAS_ST = True
 except ImportError:  # pragma: no cover - default
-    SentenceTransformer = None  # type: ignore
+    SentenceTransformer = None
     _HAS_ST = False
 
 _MODEL_NAME = "all-MiniLM-L6-v2"
-_MODEL: "SentenceTransformer | None" = None
+_MODEL: SentenceTransformer | None = None  # type: ignore[valid-type]
 
 
 def is_available() -> bool:
@@ -61,7 +62,7 @@ def dimension() -> int:
     return _DIM
 
 
-def _get_model() -> "SentenceTransformer | None":
+def _get_model() -> SentenceTransformer | None:
     """Return the cached model, loading it on first use.
 
     Returns ``None`` when sentence-transformers is not installed.

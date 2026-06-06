@@ -54,14 +54,52 @@ class ProviderSpec:
 
 PROVIDER_SPECS: tuple[ProviderSpec, ...] = (
     ProviderSpec("heuristic", "Heuristic (no API)", "heuristic", "", ""),
-    ProviderSpec("groq", "Groq", "openai_compatible", "https://api.groq.com/openai/v1", "llama-3.1-8b-instant"),
-    ProviderSpec("openai", "OpenAI / ChatGPT", "openai_compatible", "https://api.openai.com/v1", "gpt-4o-mini"),
-    ProviderSpec("openrouter", "OpenRouter", "openai_compatible", "https://openrouter.ai/api/v1", "openai/gpt-4o-mini"),
+    ProviderSpec(
+        "groq",
+        "Groq",
+        "openai_compatible",
+        "https://api.groq.com/openai/v1",
+        "llama-3.1-8b-instant",
+    ),
+    ProviderSpec(
+        "openai",
+        "OpenAI / ChatGPT",
+        "openai_compatible",
+        "https://api.openai.com/v1",
+        "gpt-4o-mini",
+    ),
+    ProviderSpec(
+        "openrouter",
+        "OpenRouter",
+        "openai_compatible",
+        "https://openrouter.ai/api/v1",
+        "openai/gpt-4o-mini",
+    ),
     ProviderSpec("xai", "xAI", "openai_compatible", "https://api.x.ai/v1", "grok-4.3"),
-    ProviderSpec("nvidia_nim", "NVIDIA NIM", "openai_compatible", "https://integrate.api.nvidia.com/v1", "meta/llama-3.1-70b-instruct"),
-    ProviderSpec("anthropic", "Anthropic / Claude", "anthropic", "https://api.anthropic.com/v1", "claude-3-5-sonnet-latest"),
-    ProviderSpec("gemini", "Google Gemini", "gemini", "https://generativelanguage.googleapis.com/v1beta", "gemini-2.5-flash"),
-    ProviderSpec("custom_openai", "Custom OpenAI-compatible", "openai_compatible", "", "gpt-4o-mini"),
+    ProviderSpec(
+        "nvidia_nim",
+        "NVIDIA NIM",
+        "openai_compatible",
+        "https://integrate.api.nvidia.com/v1",
+        "meta/llama-3.1-70b-instruct",
+    ),
+    ProviderSpec(
+        "anthropic",
+        "Anthropic / Claude",
+        "anthropic",
+        "https://api.anthropic.com/v1",
+        "claude-3-5-sonnet-latest",
+    ),
+    ProviderSpec(
+        "gemini",
+        "Google Gemini",
+        "gemini",
+        "https://generativelanguage.googleapis.com/v1beta",
+        "gemini-2.5-flash",
+    ),
+    ProviderSpec(
+        "custom_openai", "Custom OpenAI-compatible", "openai_compatible", "", "gpt-4o-mini"
+    ),
 )
 
 PROVIDER_SPEC_MAP = {spec.key: spec for spec in PROVIDER_SPECS}
@@ -94,7 +132,13 @@ class HeuristicSummarizer(BaseSummarizer):
         summary = self._summary_from_text(filename, text)
         key_contents = ", ".join(tags[:5]) if tags else "general notes"
         clean_name = humanize_filename(filename)
-        return FileMetadata(summary=summary, tags=tags, key_contents=key_contents, category=category, clean_name=clean_name)
+        return FileMetadata(
+            summary=summary,
+            tags=tags,
+            key_contents=key_contents,
+            category=category,
+            clean_name=clean_name,
+        )
 
     def search_rerank(self, query: str, candidates: list[dict[str, Any]]) -> str:
         query_tokens = set(tokenize(query))
@@ -111,7 +155,10 @@ class HeuristicSummarizer(BaseSummarizer):
             ).lower()
             score = sum(1 for token in query_tokens if token in haystack)
             if best is None or score > best[0]:
-                best = (score, str(candidate.get("current_path") or candidate.get("original_path") or ""))
+                best = (
+                    score,
+                    str(candidate.get("current_path") or candidate.get("original_path") or ""),
+                )
         return "NOT_FOUND" if best is None or best[0] == 0 else best[1]
 
     def _summary_from_text(self, filename: str, text: str) -> str:
@@ -151,7 +198,15 @@ class HeuristicSummarizer(BaseSummarizer):
         corpus = f"{filename} {text}".lower()
         mapping = {
             "Finance": ("invoice", "budget", "bank", "receipt", "tax", "expense", "payment"),
-            "Research": ("paper", "study", "experiment", "research", "analysis", "dataset", "method"),
+            "Research": (
+                "paper",
+                "study",
+                "experiment",
+                "research",
+                "analysis",
+                "dataset",
+                "method",
+            ),
             "Design": ("design", "mockup", "ui", "ux", "wireframe", "visual", "brand"),
             "Code": ("code", "python", "java", "javascript", "function", "class", "api", "commit"),
             "Media": ("video", "audio", "image", "photo", "media", "clip"),
@@ -280,10 +335,14 @@ class _LLMBaseSummarizer(BaseSummarizer):
             }
             if category not in allowed_categories:
                 category = DEFAULT_CATEGORY
-            clean_name = str(parsed.get("clean_name") or humanize_filename(filename)).strip() or humanize_filename(filename)
+            clean_name = str(
+                parsed.get("clean_name") or humanize_filename(filename)
+            ).strip() or humanize_filename(filename)
             fb = self.fallback or HeuristicSummarizer()
             return FileMetadata(
-                summary=str(parsed.get("summary") or fb.get_file_metadata(filename, text_snippet).summary),
+                summary=str(
+                    parsed.get("summary") or fb.get_file_metadata(filename, text_snippet).summary
+                ),
                 tags=normalize_tags([str(tag) for tag in tags]),
                 key_contents=str(parsed.get("key_contents") or ""),
                 category=category,
@@ -296,7 +355,9 @@ class _LLMBaseSummarizer(BaseSummarizer):
     def _chat_completion(self, system_prompt: str, user_prompt: str, model: str) -> str:
         raise NotImplementedError
 
-    def _request_metadata(self, filename: str, text_snippet: str, system_prompt: str, user_prompt: str) -> FileMetadata:
+    def _request_metadata(
+        self, filename: str, text_snippet: str, system_prompt: str, user_prompt: str
+    ) -> FileMetadata:
         content = self._chat_completion(system_prompt, user_prompt, self.model)
         metadata = self._parse_metadata(content, filename, text_snippet)
         if metadata.summary and metadata.clean_name:
@@ -370,7 +431,14 @@ class _LLMBaseSummarizer(BaseSummarizer):
 
 
 class OpenAICompatibleSummarizer(_LLMBaseSummarizer):
-    def __init__(self, api_key: str | None = None, model: str = "", base_url: str = "", provider_key: str = "openai", fallback: BaseSummarizer | None = None):
+    def __init__(
+        self,
+        api_key: str | None = None,
+        model: str = "",
+        base_url: str = "",
+        provider_key: str = "openai",
+        fallback: BaseSummarizer | None = None,
+    ):
         super().__init__(api_key=api_key, model=model, fallback=fallback)
         self.base_url = base_url.rstrip("/")
         self.provider_key = provider_key
@@ -445,7 +513,11 @@ class AnthropicSummarizer(_LLMBaseSummarizer):
         parts = data.get("content", [])
         texts: list[str] = []
         for part in parts:
-            if isinstance(part, dict) and part.get("type") == "text" and isinstance(part.get("text"), str):
+            if (
+                isinstance(part, dict)
+                and part.get("type") == "text"
+                and isinstance(part.get("text"), str)
+            ):
                 texts.append(part["text"])
         return "\n".join(texts).strip()
 
@@ -489,7 +561,12 @@ class GeminiSummarizer(_LLMBaseSummarizer):
 
 
 class GroqSummarizer(OpenAICompatibleSummarizer):
-    def __init__(self, api_key: str | None = None, model: str = "llama-3.1-8b-instant", fallback: BaseSummarizer | None = None):
+    def __init__(
+        self,
+        api_key: str | None = None,
+        model: str = "llama-3.1-8b-instant",
+        fallback: BaseSummarizer | None = None,
+    ):
         super().__init__(
             api_key=api_key or os.getenv("GROQ_API_KEY", ""),
             model=model,
@@ -499,7 +576,9 @@ class GroqSummarizer(OpenAICompatibleSummarizer):
         )
 
 
-def build_summarizer(provider: str, api_key: str | None, model: str = "", base_url: str = "") -> BaseSummarizer:
+def build_summarizer(
+    provider: str, api_key: str | None, model: str = "", base_url: str = ""
+) -> BaseSummarizer:
     provider_key = (provider or "heuristic").strip().lower()
     spec = PROVIDER_SPEC_MAP.get(provider_key)
     # If the user did not paste a key, fall back to the provider's
@@ -521,7 +600,12 @@ def build_summarizer(provider: str, api_key: str | None, model: str = "", base_u
     selected_base_url = base_url.strip() or spec.base_url
     if provider_key == "custom_openai" and not selected_base_url:
         return HeuristicSummarizer()
-    return OpenAICompatibleSummarizer(api_key=effective_key, model=selected_model, base_url=selected_base_url, provider_key=provider_key)
+    return OpenAICompatibleSummarizer(
+        api_key=effective_key,
+        model=selected_model,
+        base_url=selected_base_url,
+        provider_key=provider_key,
+    )
 
 
 def check_provider_connection(
@@ -560,7 +644,10 @@ def check_provider_connection(
         if not selected_base_url:
             return (False, "Base URL is required for this provider.")
         summarizer = OpenAICompatibleSummarizer(
-            api_key=api_key, model=selected_model, base_url=selected_base_url, provider_key=provider_key
+            api_key=api_key,
+            model=selected_model,
+            base_url=selected_base_url,
+            provider_key=provider_key,
         )
     try:
         prompt = (
@@ -575,7 +662,9 @@ def check_provider_connection(
             prompt,
             selected_model,
         )
-        metadata = summarizer._parse_metadata(content, "golem-test.txt", "This is a short test of the API key and model.")  # type: ignore[attr-defined]
+        metadata = summarizer._parse_metadata(  # type: ignore[attr-defined]
+            content, "golem-test.txt", "This is a short test of the API key and model."
+        )
     except Exception as exc:
         return (False, f"{type(exc).__name__}: {exc}")
     preview = (metadata.summary or "").strip()

@@ -1,8 +1,8 @@
 from __future__ import annotations
 
-import json
 import datetime as _dt
 import hashlib
+import json
 import logging
 import os
 from collections.abc import Callable, Iterator
@@ -20,13 +20,13 @@ from .indexer import (
     get_chunks_for_path,
     get_file_by_path,
     get_index_state,
+    insert_chunks,
     mark_missing,
     set_current_path,
     set_index_state,
     transaction,
-    insert_chunks,
-    upsert_file,
     upsert_edge,
+    upsert_file,
     upsert_node,
 )
 from .organizer import organize_file, record_move
@@ -80,7 +80,9 @@ def _content_hash(path: Path, size: int) -> str:
 
 def iter_files(root: Path) -> Iterator[Path]:
     for dirpath, dirnames, filenames in os.walk(root):
-        dirnames[:] = [d for d in dirnames if not is_hidden_or_system_dir(d) and d not in SYSTEM_SKIP_DIRS]
+        dirnames[:] = [
+            d for d in dirnames if not is_hidden_or_system_dir(d) and d not in SYSTEM_SKIP_DIRS
+        ]
         for filename in filenames:
             path = Path(dirpath) / filename
             if path.suffix.lower() not in SUPPORTED_EXTENSIONS:
@@ -150,7 +152,9 @@ def _sync_graph(conn, record: FileRecord) -> None:
         logging.warning("Semantic graph sync failed for %s: %s", record.original_path, exc)
 
 
-def _sync_semantic_artifacts(conn, path: str, content_hash: str, text: str, record: FileRecord) -> None:
+def _sync_semantic_artifacts(
+    conn, path: str, content_hash: str, text: str, record: FileRecord
+) -> None:
     """Best-effort semantic index maintenance for a file."""
     try:
         # Remove stale data first so repeated scans stay idempotent.
@@ -209,7 +213,12 @@ def _rollback(
             # shutil.move can fail across volume boundaries in reverse too.
             safe_move(target_path, original_source)
         except OSError as exc:
-            logging.error("Rollback move failed: target=%s source=%s err=%s", target_path, original_source, exc)
+            logging.error(
+                "Rollback move failed: target=%s source=%s err=%s",
+                target_path,
+                original_source,
+                exc,
+            )
     if note_path and note_path.exists():
         try:
             if not read_user_edited(note_path):
@@ -417,7 +426,9 @@ def scan_folder(
         if progress:
             progress(index / total, path.name)
         try:
-            _, status = index_one_file(conn, path, vault_folder, summarizer, dry_run=dry_run, log=log)
+            _, status = index_one_file(
+                conn, path, vault_folder, summarizer, dry_run=dry_run, log=log
+            )
             if status == "skipped":
                 result.skipped += 1
             else:

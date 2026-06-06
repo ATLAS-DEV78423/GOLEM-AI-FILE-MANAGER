@@ -16,13 +16,20 @@ class InstallerTests(unittest.TestCase):
         files = []
         for path in sorted(payload.rglob("*")):
             if path.is_file() and path.name != "payload-manifest.json":
-                files.append({"path": str(path.relative_to(payload)).replace("\\", "/"), "sha256": hashlib.sha256(path.read_bytes()).hexdigest()})
+                files.append(
+                    {
+                        "path": str(path.relative_to(payload)).replace("\\", "/"),
+                        "sha256": hashlib.sha256(path.read_bytes()).hexdigest(),
+                    }
+                )
         manifest = {
             "app_name": installer.APP_NAME,
             "version": installer.APP_VERSION,
             "files": files,
         }
-        (payload / "payload-manifest.json").write_text(json.dumps(manifest, indent=2), encoding="utf-8")
+        (payload / "payload-manifest.json").write_text(
+            json.dumps(manifest, indent=2), encoding="utf-8"
+        )
 
     def test_install_and_uninstall_round_trip(self) -> None:
         sandbox = Path(tempfile.mkdtemp())
@@ -35,7 +42,9 @@ class InstallerTests(unittest.TestCase):
         self._write_payload_manifest(payload)
         install_dir = sandbox / "Programs" / "GOLEM"
 
-        def fake_shortcut(shortcut_path: Path, target_path: Path, workdir: Path, icon_path: Path | None = None):
+        def fake_shortcut(
+            shortcut_path: Path, target_path: Path, workdir: Path, icon_path: Path | None = None
+        ):
             shortcut_path.parent.mkdir(parents=True, exist_ok=True)
             shortcut_path.write_text(f"{target_path}\n", encoding="utf-8")
             return shortcut_path
@@ -44,9 +53,12 @@ class InstallerTests(unittest.TestCase):
             "LOCALAPPDATA": str(sandbox),
             "GOLEM_PAYLOAD_BYPASS_ROOT_CHECK": "1",
         }
-        with patch.dict(os.environ, env_overrides), patch("installer.create_shortcut", side_effect=fake_shortcut), patch(
-            "installer.registry_write_install"
-        ), patch("installer.subprocess.Popen"):
+        with (
+            patch.dict(os.environ, env_overrides),
+            patch("installer.create_shortcut", side_effect=fake_shortcut),
+            patch("installer.registry_write_install"),
+            patch("installer.subprocess.Popen"),
+        ):
             manifest = installer.install_app(
                 installer.InstallOptions(install_dir=install_dir, launch_after=False),
                 payload_dir=payload,
@@ -73,7 +85,10 @@ class InstallerTests(unittest.TestCase):
         unsafe_install_dir = sandbox / "outside" / "GOLEM"
         with patch.dict(os.environ, {"LOCALAPPDATA": str(sandbox)}):
             with self.assertRaises(ValueError):
-                installer.install_app(installer.InstallOptions(install_dir=unsafe_install_dir, launch_after=False), payload_dir=payload)
+                installer.install_app(
+                    installer.InstallOptions(install_dir=unsafe_install_dir, launch_after=False),
+                    payload_dir=payload,
+                )
 
     def test_rejects_tampered_payload_manifest(self) -> None:
         sandbox = Path(tempfile.mkdtemp())
@@ -93,7 +108,10 @@ class InstallerTests(unittest.TestCase):
         install_dir = sandbox / "Programs" / "GOLEM"
         with patch.dict(os.environ, {"LOCALAPPDATA": str(sandbox)}):
             with self.assertRaises(ValueError):
-                installer.install_app(installer.InstallOptions(install_dir=install_dir, launch_after=False), payload_dir=payload)
+                installer.install_app(
+                    installer.InstallOptions(install_dir=install_dir, launch_after=False),
+                    payload_dir=payload,
+                )
 
     def test_uninstall_refuses_when_no_manifest(self) -> None:
         """Uninstall must refuse to delete a directory that has no install-manifest.json."""
@@ -137,8 +155,9 @@ class InstallerTests(unittest.TestCase):
             ),
             encoding="utf-8",
         )
-        with patch.dict(os.environ, {"LOCALAPPDATA": str(sandbox)}), patch(
-            "installer.registry_remove_install"
+        with (
+            patch.dict(os.environ, {"LOCALAPPDATA": str(sandbox)}),
+            patch("installer.registry_remove_install"),
         ):
             result = installer.uninstall_app(install_dir)
             self.assertEqual(result["status"], "ok")

@@ -30,6 +30,7 @@ class LoadTests(unittest.TestCase):
         # Skip on machines with < 2 GB free scratch space.
         try:
             import shutil as _sh
+
             usage = _sh.disk_usage(".")
             if usage.free < 2 * 1024 * 1024 * 1024:
                 cls._skip_reason = "less than 2 GB free disk space"
@@ -42,6 +43,7 @@ class LoadTests(unittest.TestCase):
 
     def test_iter_files_handles_1k_files(self) -> None:
         from tempfile import mkdtemp
+
         root = Path(mkdtemp())
         try:
             for i in range(1_000):
@@ -53,6 +55,7 @@ class LoadTests(unittest.TestCase):
 
     def test_scan_indexes_1k_files_in_under_60s(self) -> None:
         from tempfile import mkdtemp
+
         root = Path(mkdtemp())
         vault = root / "vault"
         db = root / "golem.db"
@@ -84,6 +87,7 @@ class LoadTests(unittest.TestCase):
         will mark every row as missing.
         """
         from tempfile import mkdtemp
+
         root = Path(mkdtemp())
         vault = root / "vault"
         db = root / "golem.db"
@@ -113,6 +117,7 @@ class LoadTests(unittest.TestCase):
     def test_content_hash_for_oversize_file_uses_head_tail(self) -> None:
         """A 20 MB file is hashed with the head+tail strategy."""
         from tempfile import mkdtemp
+
         root = Path(mkdtemp())
         try:
             p = root / "big.bin"
@@ -129,6 +134,7 @@ class LoadTests(unittest.TestCase):
 
     def test_iter_files_skips_hidden_and_system_dirs(self) -> None:
         from tempfile import mkdtemp
+
         root = Path(mkdtemp())
         try:
             (root / "visible.txt").write_text("yes", encoding="utf-8")

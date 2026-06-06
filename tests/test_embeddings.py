@@ -6,11 +6,11 @@ tests verify that contract. When the dependency IS installed, we do
 not assert anything about vector *content* (which would be non-
 deterministic), only that ``embed`` and ``embed_batch`` succeed.
 """
+
 from __future__ import annotations
 
 import unittest
 
-from golem import embeddings
 from golem.embeddings import content_hash, dimension, embed, embed_batch, is_available
 
 
@@ -43,8 +43,11 @@ class TestEmbeddings(unittest.TestCase):
         if is_available():
             self.skipTest("sentence-transformers installed; cannot test fallback path")
         v = embed("anything")
-        self.assertEqual(sum(abs(x) for x in v), 0.0,
-                         "without sentence-transformers, embed() should return a zero vector")
+        self.assertEqual(
+            sum(abs(x) for x in v),
+            0.0,
+            "without sentence-transformers, embed() should return a zero vector",
+        )
 
     def test_content_hash_is_stable(self) -> None:
         h1 = content_hash("hello")

@@ -83,6 +83,23 @@ All notable changes to GOLEM are documented in this file. Versions follow
 
 ## [Unreleased]
 
+### Code Quality
+- **Type safety**: fixed 40+ mypy errors across the codebase — removed stale
+  `type: ignore` comments, added proper type annotations for `_SENTINEL`,
+  `SentenceTransformer`, and `check_provider_connection`.
+- **Lint**: resolved all ruff violations (S608 SQL injection false positives
+  with whitelist validation, S108 test path warnings, duplicate dict keys,
+  missing imports).
+- **Formatting**: applied `ruff format` to all 57 source files for consistent
+  code style.
+- **Bug fix**: fixed `checkpoint_wal` in `indexer.py` — SQLite PRAGMA statements
+  do not support `?` parameter binding, which caused an integration test
+  failure (`test_restore_from_backup_recovers_data`).
+- **Bug fix**: removed duplicate `"m4a"` key in `_FILE_TYPE_EMOJI` dict in
+  `ui_components.py`.
+- **Bug fix**: added missing `Any` import in `app.py` for the `_search_wrapper`
+  type signature.
+
 ### Security
 - **XML parsing**: replaced unsafe `xml.etree.ElementTree` with `defusedxml`
   to prevent XML bomb (Billion Laughs) attacks in Office document extraction.
@@ -94,8 +111,9 @@ All notable changes to GOLEM are documented in this file. Versions follow
 ### Build
 - **Windows installer**: fixed `build_windows_installer.ps1` to set `PYTHONPATH`
   before generating the payload manifest so the `golem` module can be imported.
+- **Windows installer**: built `dist/GOLEM-Setup-2.1.0.exe` (67.3 MB) locally.
 - **Build validation**: verified all build scripts parse correctly. Mypy is clean
-  (0 errors). All 151 tests pass.
+  (0 errors). All 204 tests pass. Ruff is clean.
 
 ### Docs
 - **Download guides**: added `docs/DOWNLOAD_WINDOWS.md`, `docs/DOWNLOAD_MACOS.md`,

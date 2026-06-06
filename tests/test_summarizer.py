@@ -78,7 +78,10 @@ class TestProviderConnectionTests(unittest.TestCase):
         result = summarizer.search_rerank(
             "find the Fabric prompt for summarizing PDFs",
             [
-                {"current_path": "C:/vault/GOLEM Files/Other/example.md", "summary": "a prompt library"},
+                {
+                    "current_path": "C:/vault/GOLEM Files/Other/example.md",
+                    "summary": "a prompt library",
+                },
             ],
         )
 

@@ -17,6 +17,7 @@ For a true integration smoke (which actually creates a hidden Tk
 root + the orchestrator), run this on a Windows VM:
     python -m tests.smoke_ui
 """
+
 from __future__ import annotations
 
 import importlib
@@ -70,18 +71,40 @@ def test_icons_imports() -> None:
     assert hasattr(mod, "invalidate_cache")
     icons = mod.list_icons()
     assert len(icons) >= 20
-    expected = {"search", "file", "folder", "check", "x", "alert", "gear",
-                "logo", "spinner", "arrow-right", "chevron-right"}
+    expected = {
+        "search",
+        "file",
+        "folder",
+        "check",
+        "x",
+        "alert",
+        "gear",
+        "logo",
+        "spinner",
+        "arrow-right",
+        "chevron-right",
+    }
     assert expected.issubset(set(icons))
 
 
 def test_components_imports() -> None:
     mod = importlib.import_module("golem.ui_components")
     for name in (
-        "PathField", "SecretField", "PrimaryButton", "SecondaryButton",
-        "IconButton", "StatusPill", "CategoryBadge", "EmptyState",
-        "KeyboardHint", "Separator", "StepIndicator", "HoverList",
-        "SkeletonLoader", "FooterHints", "StatusBar",
+        "PathField",
+        "SecretField",
+        "PrimaryButton",
+        "SecondaryButton",
+        "IconButton",
+        "StatusPill",
+        "CategoryBadge",
+        "EmptyState",
+        "KeyboardHint",
+        "Separator",
+        "StepIndicator",
+        "HoverList",
+        "SkeletonLoader",
+        "FooterHints",
+        "StatusBar",
     ):
         assert hasattr(mod, name), name
 
@@ -114,7 +137,17 @@ def test_ui_facade_imports() -> None:
 
 def test_color_tokens_well_formed() -> None:
     from golem.ui_theme import COLORS
-    for name in ("canvas", "panel", "elevated", "hover", "selected", "input", "overlay", "titlebar"):
+
+    for name in (
+        "canvas",
+        "panel",
+        "elevated",
+        "hover",
+        "selected",
+        "input",
+        "overlay",
+        "titlebar",
+    ):
         val = getattr(COLORS.bg, name)
         assert val.startswith("#") and len(val) == 7, f"bg.{name} = {val!r}"
     for name in ("primary", "secondary", "tertiary", "disabled", "on_accent", "inverse"):
@@ -127,6 +160,7 @@ def test_color_tokens_well_formed() -> None:
 
 def test_spacing_tokens_are_integers() -> None:
     from golem.ui_theme import SPACING
+
     for name in ("xxs", "xs", "sm", "md", "lg", "xl", "xxl", "xxxl", "gutter"):
         v = getattr(SPACING, name)
         assert isinstance(v, int) and v >= 0, f"spacing.{name} = {v!r}"
@@ -134,14 +168,22 @@ def test_spacing_tokens_are_integers() -> None:
 
 def test_motion_tokens() -> None:
     from golem.ui_theme import MOTION
+
     assert 0 < MOTION.instant < MOTION.fast < MOTION.DEFAULT < MOTION.slow < MOTION.max
     assert isinstance(MOTION.reduced_motion, bool)
 
 
 def test_typography_fonts() -> None:
     from golem.ui_theme import TYPOGRAPHY
-    for slot in (TYPOGRAPHY.display, TYPOGRAPHY.title, TYPOGRAPHY.body,
-                 TYPOGRAPHY.caption, TYPOGRAPHY.micro, TYPOGRAPHY.code):
+
+    for slot in (
+        TYPOGRAPHY.display,
+        TYPOGRAPHY.title,
+        TYPOGRAPHY.body,
+        TYPOGRAPHY.caption,
+        TYPOGRAPHY.micro,
+        TYPOGRAPHY.code,
+    ):
         f = slot.font()
         assert len(f) == 3
         family, size, weight = f
@@ -157,6 +199,7 @@ def test_typography_fonts() -> None:
 
 def test_easing_endpoints() -> None:
     from golem.ui_anim import ease_in_cubic, ease_in_out_cubic, ease_out_back, ease_out_cubic
+
     for fn in (ease_in_cubic, ease_in_out_cubic, ease_out_back, ease_out_cubic):
         assert fn(0.0) == 0.0
         assert abs(fn(1.0) - 1.0) < 1e-9
@@ -165,6 +208,7 @@ def test_easing_endpoints() -> None:
 def test_easing_monotonic_cubic() -> None:
     """Cubic-out and cubic-in should be monotonic."""
     from golem.ui_anim import ease_in_cubic, ease_out_cubic
+
     last = 0.0
     for t in [0.0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1.0]:
         v = ease_out_cubic(t)
@@ -179,6 +223,7 @@ def test_easing_monotonic_cubic() -> None:
 
 def test_lerp_color_midpoint() -> None:
     from golem.ui_anim import lerp_color
+
     # Midpoint of black and white is grey
     mid = lerp_color("#000000", "#FFFFFF", 0.5)
     assert mid == "#7F7F7F"
@@ -186,6 +231,7 @@ def test_lerp_color_midpoint() -> None:
 
 def test_lerp_color_endpoints() -> None:
     from golem.ui_anim import lerp_color
+
     assert lerp_color("#AABBCC", "#112233", 0.0) == "#AABBCC"
     assert lerp_color("#AABBCC", "#112233", 1.0) == "#112233"
 
@@ -198,6 +244,7 @@ def test_lerp_color_endpoints() -> None:
 def test_icon_library_well_formed() -> None:
     """Every icon definition should have a name, an SVG path, and be unique."""
     from golem.ui_icons import ICON_LIBRARY
+
     names = [i.name for i in ICON_LIBRARY]
     assert len(names) == len(set(names)), "duplicate icon names"
     for defn in ICON_LIBRARY:
@@ -210,6 +257,7 @@ def test_icon_library_well_formed() -> None:
 def test_icon_svg_parser() -> None:
     """The internal parser should correctly handle common SVG commands."""
     from golem.ui_icons import _parse_svg_path
+
     cmds = _parse_svg_path("M10 10 L20 20 H30 V40 Z")
     assert cmds[0][0] == "M" and cmds[0][1] == (10.0, 10.0)
     assert cmds[1][0] == "L" and cmds[1][1] == (20.0, 20.0)
@@ -221,11 +269,18 @@ def test_icon_svg_parser() -> None:
 def test_icon_arc_parser() -> None:
     """Arc commands should produce a sequence of polyline points."""
     from golem.ui_icons import _arc_to_points
+
     # A quarter-circle from (1, 0) to (0, 1) on the unit circle
     pts = _arc_to_points(
-        1.0, 0.0, 0.0, 1.0,
-        rx=1.0, ry=1.0, x_axis_rotation=0.0,
-        large_arc=0, sweep=1,
+        1.0,
+        0.0,
+        0.0,
+        1.0,
+        rx=1.0,
+        ry=1.0,
+        x_axis_rotation=0.0,
+        large_arc=0,
+        sweep=1,
     )
     assert len(pts) > 4
     # The first point should be (1, 0) and the last (0, 1) in the
@@ -243,6 +298,7 @@ def test_icon_arc_parser() -> None:
 
 def test_parse_hex_3_digit() -> None:
     from golem.ui_theme import _parse_hex
+
     assert _parse_hex("#fff") == (255, 255, 255)
     assert _parse_hex("#000") == (0, 0, 0)
     assert _parse_hex("#f00") == (255, 0, 0)
@@ -250,6 +306,7 @@ def test_parse_hex_3_digit() -> None:
 
 def test_parse_hex_6_digit() -> None:
     from golem.ui_theme import _parse_hex
+
     assert _parse_hex("#FF8C42") == (0xFF, 0x8C, 0x42)
     assert _parse_hex("#000000") == (0, 0, 0)
     assert _parse_hex("#FFFFFF") == (255, 255, 255)
@@ -265,9 +322,17 @@ def test_search_dicts_to_results() -> None:
     import inspect
 
     from golem.ui_search import SearchPopup
+
     src = inspect.getsource(SearchPopup._dicts_to_results)
     # Must reference the documented backend keys
-    for key in ("clean_filename", "original_filename", "chunk_text", "summary", "current_path", "original_path"):
+    for key in (
+        "clean_filename",
+        "original_filename",
+        "chunk_text",
+        "summary",
+        "current_path",
+        "original_path",
+    ):
         assert key in src, f"_dicts_to_results missing {key!r}"
 
 
@@ -278,9 +343,15 @@ def test_search_dicts_to_results() -> None:
 
 def test_onboarding_result_dataclass() -> None:
     from golem.ui_onboarding import OnboardingResult
+
     r = OnboardingResult(
-        watched="/a", vault="/b", provider="heuristic",
-        api_key="", model="", base_url="", terms_accepted=True,
+        watched="/a",
+        vault="/b",
+        provider="heuristic",
+        api_key="",
+        model="",
+        base_url="",
+        terms_accepted=True,
     )
     assert r.watched == "/a"
     assert r.vault == "/b"
@@ -298,6 +369,7 @@ def test_onboarding_result_dataclass() -> None:
 def test_reduced_motion_context_restores() -> None:
     import golem.ui_theme as t
     from golem.ui_anim import reduced_motion
+
     original = t.MOTION.reduced_motion
     with reduced_motion():
         assert t.MOTION.reduced_motion is True
@@ -311,6 +383,7 @@ def test_reduced_motion_context_restores() -> None:
 
 def test_dpi_scale_returns_positive() -> None:
     from golem.ui_window import detect_dpi_scale
+
     s = detect_dpi_scale()
     assert isinstance(s, (int, float))
     assert s > 0
@@ -319,6 +392,7 @@ def test_dpi_scale_returns_positive() -> None:
 
 def test_monitor_enumeration_returns_at_least_one() -> None:
     from golem.ui_window import enumerate_monitors
+
     ms = enumerate_monitors()
     assert len(ms) >= 1
     for m in ms:
@@ -332,6 +406,7 @@ def test_monitor_enumeration_returns_at_least_one() -> None:
 
 def test_rect_contains() -> None:
     from golem.ui_window import Rect
+
     outer = Rect(0, 0, 100, 100)
     inner = Rect(10, 10, 50, 50)
     assert outer.intersects(inner)
@@ -342,6 +417,7 @@ def test_rect_contains() -> None:
 
 def test_center_rect_in_rect() -> None:
     from golem.ui_window import Rect, center_rect_in_rect
+
     outer = Rect(0, 0, 100, 100)
     inner = Rect(0, 0, 40, 40)
     x, y = center_rect_in_rect(inner, outer)
@@ -350,6 +426,7 @@ def test_center_rect_in_rect() -> None:
 
 def test_clamp_rect_inside_monitor() -> None:
     from golem.ui_window import Monitor, Rect, clamp_rect
+
     monitors = [Monitor(0, 0, 1000, 800, is_primary=True)]
     inside = Rect(50, 50, 100, 100)
     assert clamp_rect(inside, monitors) == inside
@@ -357,6 +434,7 @@ def test_clamp_rect_inside_monitor() -> None:
 
 def test_clamp_rect_off_screen_snaps_back() -> None:
     from golem.ui_window import Monitor, Rect, clamp_rect
+
     monitors = [Monitor(0, 0, 1000, 800, is_primary=True)]
     far_away = Rect(2000, 2000, 400, 300)
     clamped = clamp_rect(far_away, monitors)

@@ -16,6 +16,7 @@ Public surface
 - ``color_transition``  — smooth color tween between two hex values.
 - ``reduced_motion``    — context flag; when set, all primitives snap.
 """
+
 from __future__ import annotations
 
 import logging
@@ -48,7 +49,12 @@ class _Animation:
 
     __slots__ = ("_after_id", "_widget", "_on_cancel", "_cancelled")
 
-    def __init__(self, widget: tk.Misc, after_id: int | str | None, on_cancel: Callable[[], None] | None = None):
+    def __init__(
+        self,
+        widget: tk.Misc,
+        after_id: int | str | None,
+        on_cancel: Callable[[], None] | None = None,
+    ):
         self._after_id = after_id
         self._widget = widget
         self._on_cancel = on_cancel
@@ -402,8 +408,13 @@ def indeterminate_bar(canvas: tk.Canvas, *, color: str, height: int = 2) -> _Ani
         try:
             canvas.delete("indet")
             canvas.create_rectangle(
-                state["x"], 0, state["x"] + state["w"], height,
-                fill=color, outline="", tags=("indet",),
+                state["x"],
+                0,
+                state["x"] + state["w"],
+                height,
+                fill=color,
+                outline="",
+                tags=("indet",),
             )
         except tk.TclError:
             state["running"] = False
@@ -468,8 +479,8 @@ def _render_tray_disc(base: Any, fill_rgba: tuple[int, int, int, int]) -> Any:
 
 def pulse_icon(
     *,
-    base: Any,                      # PIL.Image — the icon template (RGBA)
-    low: tuple[int, int, int, int], # RGBA at the dim end of the cycle
+    base: Any,  # PIL.Image — the icon template (RGBA)
+    low: tuple[int, int, int, int],  # RGBA at the dim end of the cycle
     high: tuple[int, int, int, int],
     on_frame: Callable[[Any], None],
     period_ms: int = 1400,
@@ -850,15 +861,25 @@ def shimmer_skeleton(
             canvas.delete("shimmer")
             # Base fill
             canvas.create_rectangle(
-                x, y, x + width, y + height,
-                fill=base_color, outline="", tags=("shimmer",),
+                x,
+                y,
+                x + width,
+                y + height,
+                fill=base_color,
+                outline="",
+                tags=("shimmer",),
             )
             # Sweep highlight
             sweep_w = width // 3
             sx = state["offset"]
             canvas.create_rectangle(
-                sx, y, sx + sweep_w, y + height,
-                fill=highlight_color, outline="", tags=("shimmer",),
+                sx,
+                y,
+                sx + sweep_w,
+                y + height,
+                fill=highlight_color,
+                outline="",
+                tags=("shimmer",),
             )
         except tk.TclError:
             state["running"] = False
@@ -894,6 +915,7 @@ def reduced_motion() -> Iterator[None]:
     import golem.ui_theme as _t
 
     from .ui_theme import Motion
+
     _t.MOTION = Motion(reduced_motion=True)
     try:
         yield

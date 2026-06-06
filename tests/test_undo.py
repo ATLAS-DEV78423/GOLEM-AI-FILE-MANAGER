@@ -98,7 +98,9 @@ class UndoLastTests(unittest.TestCase):
         self.assertTrue(source.exists(), "source was not restored")
         self.assertFalse(target.exists(), "target was not removed")
         # current_path should now match the original (from_path).
-        row = self.conn.execute("SELECT current_path, original_path FROM files WHERE id = 1").fetchone()
+        row = self.conn.execute(
+            "SELECT current_path, original_path FROM files WHERE id = 1"
+        ).fetchone()
         self.assertEqual(row["current_path"], str(source))
         # The undo log row is marked reversed.
         flag = self.conn.execute("SELECT reversed FROM undo_log").fetchone()["reversed"]

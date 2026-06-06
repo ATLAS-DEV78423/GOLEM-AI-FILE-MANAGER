@@ -12,6 +12,7 @@ All public functions degrade gracefully: if the cache is unavailable or the
 retry budget is exhausted, the caller's fallback (typically the heuristic
 summarizer) is invoked without raising.
 """
+
 from __future__ import annotations
 
 import hashlib
@@ -20,11 +21,12 @@ import logging
 import time
 from collections.abc import Callable
 from contextlib import contextmanager
+from pathlib import Path
 from typing import Any
 
-from pathlib import Path
-
-from .indexer import cache_get as _cache_get, cache_increment_hit as _cache_increment_hit, cache_put as _cache_put
+from .indexer import cache_get as _cache_get
+from .indexer import cache_increment_hit as _cache_increment_hit
+from .indexer import cache_put as _cache_put
 from .indexer import connect as _indexer_connect
 from .summarizer import BaseSummarizer, FileMetadata, HeuristicSummarizer
 from .utils import humanize_filename, normalize_tags, text_excerpt
@@ -34,8 +36,8 @@ _LOG = logging.getLogger(__name__)
 # ---------------------------------------------------------------------------
 # Cache levels (stored in llm_cache.cache_level)
 # ---------------------------------------------------------------------------
-CACHE_LEVEL_EXACT = 0       # never expires
-CACHE_LEVEL_EPHEMERAL = 2   # 1 hour TTL
+CACHE_LEVEL_EXACT = 0  # never expires
+CACHE_LEVEL_EPHEMERAL = 2  # 1 hour TTL
 _CACHE_TTL_EPHEMERAL = 3600
 
 # ---------------------------------------------------------------------------
@@ -48,14 +50,23 @@ _MAX_DELAY = 10.0  # seconds
 # ---------------------------------------------------------------------------
 # Metadata schema validation
 # ---------------------------------------------------------------------------
-_ALLOWED_CATEGORIES = frozenset({
-    "Finance", "Research", "Design", "Code",
-    "Media", "Personal", "Legal", "Other", "Duplicates",
-})
+_ALLOWED_CATEGORIES = frozenset(
+    {
+        "Finance",
+        "Research",
+        "Design",
+        "Code",
+        "Media",
+        "Personal",
+        "Legal",
+        "Other",
+        "Duplicates",
+    }
+)
 
 # Sentinel for cache misses (since a cached value could be any JSON value,
 # even a falsy one, we need a unique sentinel to distinguish "not cached").
-_SENTINEL: dict[str, Any] = {"__golem_sentinel__": True}
+_SENTINEL: Any = {"__golem_sentinel__": True}
 
 
 def build_cache_key(kind: str, *parts: str) -> str:
@@ -172,7 +183,10 @@ def with_retry(
             if attempt < max_retries - 1:
                 _LOG.warning(
                     "Call failed (attempt %d/%d): %s. Retrying in %.1fs...",
-                    attempt + 1, max_retries, exc, delay,
+                    attempt + 1,
+                    max_retries,
+                    exc,
+                    delay,
                 )
                 time.sleep(delay)
                 delay = min(delay * 2, _MAX_DELAY)
@@ -215,7 +229,9 @@ class CachedSummarizer(BaseSummarizer):
         # Allow injection for testability; default to indexer functions.
         self._cache_get = cache_get_fn if cache_get_fn is not None else _cache_get
         self._cache_put = cache_put_fn if cache_put_fn is not None else _cache_put
-        self._cache_increment_hit = cache_increment_hit_fn if cache_increment_hit_fn is not None else _cache_increment_hit
+        self._cache_increment_hit = (
+            cache_increment_hit_fn if cache_increment_hit_fn is not None else _cache_increment_hit
+        )
         self.fallback = fallback
 
     @contextmanager
@@ -263,9 +279,9 @@ class CachedSummarizer(BaseSummarizer):
             )
         except Exception as exc:
             _LOG.warning(
-                "Metadata generation failed for %s after retry: %s. "
-                "Falling back to heuristic.",
-                filename, exc,
+                "Metadata generation failed for %s after retry: %s. Falling back to heuristic.",
+                filename,
+                exc,
             )
             fb = self._get_fallback()
             return fb.get_file_metadata(filename, text_snippet)
@@ -277,11 +293,14 @@ class CachedSummarizer(BaseSummarizer):
             if validation_errors:
                 _LOG.warning(
                     "Metadata validation warnings for %s: %s",
-                    filename, "; ".join(validation_errors),
+                    filename,
+                    "; ".join(validation_errors),
                 )
             with self._connection() as conn:
                 self._cache_put(
-                    conn, cache_key, CACHE_LEVEL_EXACT,
+                    conn,
+                    cache_key,
+                    CACHE_LEVEL_EXACT,
                     json.dumps(data, ensure_ascii=False),
                 )
         except Exception as exc:
@@ -292,8 +311,7 @@ class CachedSummarizer(BaseSummarizer):
     def search_rerank(self, query: str, candidates: list[dict[str, Any]]) -> str:
         """Search rerank with caching and retry."""
         candidate_keys = [
-            str(c.get("current_path", c.get("original_path", "")))
-            for c in candidates[:5]
+            str(c.get("current_path", c.get("original_path", ""))) for c in candidates[:5]
         ]
         cache_key = build_cache_key("rerank", query, *candidate_keys)
 
@@ -318,7 +336,9 @@ class CachedSummarizer(BaseSummarizer):
         try:
             with self._connection() as conn:
                 self._cache_put(
-                    conn, cache_key, CACHE_LEVEL_EPHEMERAL,
+                    conn,
+                    cache_key,
+                    CACHE_LEVEL_EPHEMERAL,
                     json.dumps({"result": result}, ensure_ascii=False),
                     ttl_seconds=_CACHE_TTL_EPHEMERAL,
                 )
@@ -331,7 +351,7 @@ class CachedSummarizer(BaseSummarizer):
     # Internal helpers
     # ------------------------------------------------------------------
 
-    def _try_read_cache(self, key: str) -> dict[str, Any] | _SENTINEL:
+    def _try_read_cache(self, key: str) -> dict[str, Any] | Any:
         """Read and deserialize a cache entry. Returns ``_SENTINEL`` on
         miss or deserialization failure."""
         try:

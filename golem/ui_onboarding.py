@@ -34,6 +34,7 @@ Transitions
 A 220 ms fade + 12 px horizontal slide between steps. The step
 indicator and the title bar persist; only the body pane is replaced.
 """
+
 from __future__ import annotations
 
 import inspect
@@ -89,8 +90,13 @@ class OnboardingResult:
 
     def to_legacy_args(self) -> tuple[str, str, str, str, str, str, bool]:
         return (
-            self.watched, self.vault, self.provider,
-            self.api_key, self.model, self.base_url, self.terms_accepted,
+            self.watched,
+            self.vault,
+            self.provider,
+            self.api_key,
+            self.model,
+            self.base_url,
+            self.terms_accepted,
         )
 
 
@@ -362,12 +368,16 @@ class OnboardingWizard:
             parent=body,
             label="Watched folder",
             variable=self.watched_var,
-            on_browse=lambda: self._browse_folder(self.watched_var, "Pick the folder GOLEM should watch"),
+            on_browse=lambda: self._browse_folder(
+                self.watched_var, "Pick the folder GOLEM should watch"
+            ),
         ).build().pack(fill="x", pady=(0, SPACING.md))
         ttk.Label(
             body,
             text="Drop a file here and GOLEM will index it within seconds.",
-            style="Caption.TLabel", wraplength=480, justify="left",
+            style="Caption.TLabel",
+            wraplength=480,
+            justify="left",
         ).pack(anchor="w", pady=(0, SPACING.lg))
 
         self._auto_detect_vault()
@@ -380,7 +390,9 @@ class OnboardingWizard:
         ttk.Label(
             body,
             text="GOLEM will write a note for each file into this vault.",
-            style="Caption.TLabel", wraplength=480, justify="left",
+            style="Caption.TLabel",
+            wraplength=480,
+            justify="left",
         ).pack(anchor="w", pady=(0, SPACING.lg))
 
         # Help / hint
@@ -389,13 +401,17 @@ class OnboardingWizard:
         info_inner = tk.Frame(info, bg=COLORS.state.info_muted)
         info_inner.pack(fill="x", padx=SPACING.md, pady=SPACING.sm)
         ttk.Label(
-            info_inner, image=get_icon("info", size=14, color=COLORS.state.info, master=info_inner),
-            text=" Tip", compound="left", style="Caption.TLabel",
+            info_inner,
+            image=get_icon("info", size=14, color=COLORS.state.info, master=info_inner),
+            text=" Tip",
+            compound="left",
+            style="Caption.TLabel",
         ).pack(side="left", padx=(0, SPACING.xs))
         ttk.Label(
             info_inner,
             text="You can change these paths later from the tray menu.",
-            style="Caption.TLabel", foreground=COLORS.state.info,
+            style="Caption.TLabel",
+            foreground=COLORS.state.info,
         ).pack(side="left")
         if self._status_bar is not None:
             self._status_bar.set_idle("Step 1 of 4 - pick the folders")
@@ -429,7 +445,9 @@ class OnboardingWizard:
     def _render_provider(self) -> None:
         body = self._body
         assert body is not None
-        ttk.Label(body, text="AI provider", style="Caption.TLabel").pack(anchor="w", pady=(0, SPACING.xs))
+        ttk.Label(body, text="AI provider", style="Caption.TLabel").pack(
+            anchor="w", pady=(0, SPACING.xs)
+        )
         combo = ttk.Combobox(
             body,
             textvariable=self.provider_label_var,
@@ -441,15 +459,23 @@ class OnboardingWizard:
 
         ttk.Label(
             body,
-            text=("Heuristic mode is fast, local, and doesn't need an API key. "
-                  "Choose a provider for AI summaries and search reranking."),
-            style="Caption.TLabel", wraplength=480, justify="left",
+            text=(
+                "Heuristic mode is fast, local, and doesn't need an API key. "
+                "Choose a provider for AI summaries and search reranking."
+            ),
+            style="Caption.TLabel",
+            wraplength=480,
+            justify="left",
         ).pack(anchor="w", pady=(0, SPACING.lg))
 
-        ttk.Label(body, text="Model (optional)", style="Caption.TLabel").pack(anchor="w", pady=(0, SPACING.xs))
+        ttk.Label(body, text="Model (optional)", style="Caption.TLabel").pack(
+            anchor="w", pady=(0, SPACING.xs)
+        )
         ttk.Entry(body, textvariable=self.model_var).pack(fill="x", pady=(0, SPACING.md))
 
-        ttk.Label(body, text="API base URL (optional)", style="Caption.TLabel").pack(anchor="w", pady=(0, SPACING.xs))
+        ttk.Label(body, text="API base URL (optional)", style="Caption.TLabel").pack(
+            anchor="w", pady=(0, SPACING.xs)
+        )
         ttk.Entry(body, textvariable=self.base_url_var).pack(fill="x", pady=(0, SPACING.lg))
 
         self._secret = SecretField(
@@ -489,6 +515,7 @@ class OnboardingWizard:
             self._secret.set_result(False, "Enter an API key first.")
             return
         self._secret.set_testing("Testing")
+
         def _worker():
             try:
                 ok, msg = check_provider_connection(
@@ -504,6 +531,7 @@ class OnboardingWizard:
                     self.window.after(0, lambda: self._secret.set_result(ok, msg))
                 except tk.TclError:
                     pass
+
         threading.Thread(target=_worker, daemon=True, name="golem-test-key").start()
 
     # ------------------------------------------------------------------
@@ -516,7 +544,8 @@ class OnboardingWizard:
         header = tk.Frame(body, bg=COLORS.bg.panel)
         header.pack(fill="x", pady=(0, SPACING.md))
         ttk.Label(
-            header, text=f"Terms of Service v{TERMS_VERSION}",
+            header,
+            text=f"Terms of Service v{TERMS_VERSION}",
             style="BodyStrong.TLabel",
         ).pack(side="left")
         SecondaryButton(header, "Read full terms", self._open_terms, width=18).pack(side="right")
@@ -527,13 +556,21 @@ class OnboardingWizard:
         card_inner.pack(fill="both", expand=True, padx=SPACING.lg, pady=SPACING.lg)
         for headline, body_text in [
             ("What GOLEM does", "Watches a folder, extracts text, writes notes."),
-            ("Where your data goes", "Locally only. Nothing leaves your machine unless you pick a cloud AI provider."),
-            ("Your responsibility", "Don't point GOLEM at folders with secrets you don't want indexed."),
+            (
+                "Where your data goes",
+                "Locally only. Nothing leaves your machine unless you pick a cloud AI provider.",
+            ),
+            (
+                "Your responsibility",
+                "Don't point GOLEM at folders with secrets you don't want indexed.",
+            ),
         ]:
             block = tk.Frame(card_inner, bg=COLORS.bg.elevated)
             block.pack(fill="x", anchor="w", pady=(0, SPACING.md))
             ttk.Label(block, text=headline, style="BodyStrong.TLabel").pack(anchor="w")
-            ttk.Label(block, text=body_text, style="Caption.TLabel", wraplength=420, justify="left").pack(anchor="w", pady=(SPACING.xxs, 0))
+            ttk.Label(
+                block, text=body_text, style="Caption.TLabel", wraplength=420, justify="left"
+            ).pack(anchor="w", pady=(SPACING.xxs, 0))
         ttk.Checkbutton(
             body,
             text="I agree to the Terms of Service",
@@ -554,27 +591,36 @@ class OnboardingWizard:
         win.minsize(640, 520)
         frame = tk.Frame(win, bg=COLORS.bg.panel)
         frame.pack(fill="both", expand=True, padx=SPACING.lg, pady=SPACING.lg)
-        ttk.Label(frame, text=f"Terms of Service v{TERMS_VERSION}", style="Title.TLabel").pack(anchor="w", pady=(0, SPACING.md))
+        ttk.Label(frame, text=f"Terms of Service v{TERMS_VERSION}", style="Title.TLabel").pack(
+            anchor="w", pady=(0, SPACING.md)
+        )
         text_frame = tk.Frame(frame, bg=COLORS.bg.panel)
         text_frame.pack(fill="both", expand=True)
         scrollbar = ttk.Scrollbar(text_frame, style="Vertical.TScrollbar")
         scrollbar.pack(side="right", fill="y")
         text = tk.Text(
-            text_frame, wrap="word", yscrollcommand=scrollbar.set,
-            bg=COLORS.bg.elevated, fg=COLORS.fg.primary,
+            text_frame,
+            wrap="word",
+            yscrollcommand=scrollbar.set,
+            bg=COLORS.bg.elevated,
+            fg=COLORS.fg.primary,
             insertbackground=COLORS.accent.DEFAULT,
-            relief="flat", bd=0, highlightthickness=1,
+            relief="flat",
+            bd=0,
+            highlightthickness=1,
             highlightbackground=COLORS.border.subtle,
             highlightcolor=COLORS.border.subtle,
             font=TYPOGRAPHY.body.font(),
-            padx=SPACING.md, pady=SPACING.md,
+            padx=SPACING.md,
+            pady=SPACING.md,
         )
         text.pack(side="left", fill="both", expand=True)
         scrollbar.config(command=text.yview)
         text.insert("1.0", terms_of_service_text())
         text.configure(state="disabled")
         ttk.Label(
-            frame, text="Read the terms before continuing.",
+            frame,
+            text="Read the terms before continuing.",
             style="Caption.TLabel",
         ).pack(anchor="w", pady=(SPACING.md, 0))
         self._terms_window = win
@@ -609,18 +655,24 @@ class OnboardingWizard:
         if provider_key != "heuristic":
             api = self.api_var.get()
             masked = ("*" * min(8, len(api)) + api[-4:]) if len(api) >= 12 else "(none)"
-            ttk.Label(card_inner, text=f"API key: {masked}", style="Caption.TLabel").pack(anchor="w", pady=(SPACING.sm, 0))
+            ttk.Label(card_inner, text=f"API key: {masked}", style="Caption.TLabel").pack(
+                anchor="w", pady=(SPACING.sm, 0)
+            )
 
         next_card = tk.Frame(body, bg=COLORS.bg.panel, bd=0, highlightthickness=0)
         next_card.pack(fill="x")
-        ttk.Label(next_card, text="When you click Awaken GOLEM:", style="BodyStrong.TLabel").pack(anchor="w")
+        ttk.Label(next_card, text="When you click Awaken GOLEM:", style="BodyStrong.TLabel").pack(
+            anchor="w"
+        )
         for line in [
             "1. The watched folder is scanned for new and changed files.",
             "2. Each file gets a note in your Obsidian vault.",
             "3. Files are moved into <vault>/GOLEM Files/<category>/.",
             "4. The tray icon appears - right-click it for more actions.",
         ]:
-            ttk.Label(next_card, text=line, style="Caption.TLabel").pack(anchor="w", pady=(SPACING.xxs, 0))
+            ttk.Label(next_card, text=line, style="Caption.TLabel").pack(
+                anchor="w", pady=(SPACING.xxs, 0)
+            )
         if self._status_bar is not None:
             self._status_bar.set_idle("Step 4 of 4 - confirm")
 
@@ -710,8 +762,12 @@ class OnboardingWizard:
                 self._status_bar.set_error("You must accept the Terms of Service to continue.")
             return
         result = OnboardingResult(
-            watched=watched, vault=vault, provider=provider,
-            api_key=api, model=model, base_url=base_url,
+            watched=watched,
+            vault=vault,
+            provider=provider,
+            api_key=api,
+            model=model,
+            base_url=base_url,
             terms_accepted=accepted,
         )
         try:

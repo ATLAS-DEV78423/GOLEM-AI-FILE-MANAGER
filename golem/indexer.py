@@ -72,7 +72,9 @@ def _machine_secret() -> bytes:
     """
     parts: list[str] = []
     # Hostname
-    parts.append(os.uname().nodename if hasattr(os, "uname") else os.getenv("COMPUTERNAME", "unknown"))
+    parts.append(
+        os.uname().nodename if hasattr(os, "uname") else os.getenv("COMPUTERNAME", "unknown")
+    )
     # OS install UUID
     if sys.platform == "win32":
         try:
@@ -92,7 +94,10 @@ def _machine_secret() -> bytes:
 
             out = subprocess.run(
                 ["ioreg", "-rd1", "-c", "IOPlatformExpertDevice"],
-                capture_output=True, text=True, timeout=5, check=False,
+                capture_output=True,
+                text=True,
+                timeout=5,
+                check=False,
             )
             for line in out.stdout.splitlines():
                 if "IOPlatformUUID" in line:
@@ -132,7 +137,9 @@ def _protect_dpapi(value: str) -> str:
     kernel32 = ctypes.windll.kernel32
     in_blob = _blob_from_bytes(value.encode("utf-8"))
     out_blob = _DATA_BLOB()
-    if not crypt32.CryptProtectData(ctypes.byref(in_blob), None, None, None, None, 0, ctypes.byref(out_blob)):
+    if not crypt32.CryptProtectData(
+        ctypes.byref(in_blob), None, None, None, None, 0, ctypes.byref(out_blob)
+    ):
         raise ctypes.WinError()
     try:
         encrypted = _bytes_from_blob(out_blob)
@@ -146,13 +153,15 @@ def _unprotect_dpapi(value: str) -> str:
     if sys.platform != "win32":
         raise RuntimeError("DPAPI is only available on Windows")
 
-    payload = value[len(_SECRET_PREFIX):]
+    payload = value[len(_SECRET_PREFIX) :]
     payload_bytes = base64.b64decode(payload.encode("ascii"))
     in_blob = _blob_from_bytes(payload_bytes)
     out_blob = _DATA_BLOB()
     crypt32 = ctypes.windll.crypt32
     kernel32 = ctypes.windll.kernel32
-    if not crypt32.CryptUnprotectData(ctypes.byref(in_blob), None, None, None, None, 0, ctypes.byref(out_blob)):
+    if not crypt32.CryptUnprotectData(
+        ctypes.byref(in_blob), None, None, None, None, 0, ctypes.byref(out_blob)
+    ):
         raise ctypes.WinError()
     try:
         return _bytes_from_blob(out_blob).decode("utf-8")
@@ -190,7 +199,7 @@ def _protect_fernet(value: str) -> str:
 
 def _unprotect_fernet(value: str) -> str:
     """Decrypt value with Fernet."""
-    payload = value[len(_SECRET_PREFIX):]
+    payload = value[len(_SECRET_PREFIX) :]
     if payload.startswith("b64:"):
         return base64.b64decode(payload[4:].encode("ascii")).decode("utf-8")
     if not _check_fernet():
@@ -222,9 +231,9 @@ def _unprotect_secret(value: str) -> str:
     # Legacy migration: ``dpapi:`` prefix from v1/v2 → re-encrypt
     if value.startswith("dpapi:"):
         # Legacy DPAPI-protected (Windows) or base64 (others)
-        if _is_windows() and not value[len("dpapi:"):].startswith("b64:"):
+        if _is_windows() and not value[len("dpapi:") :].startswith("b64:"):
             return _unprotect_dpapi(value)
-        return _unprotect_fernet("nekrypt:" + value[len("dpapi:"):])
+        return _unprotect_fernet("nekrypt:" + value[len("dpapi:") :])
     # Current format
     if value.startswith(_SECRET_PREFIX):
         if _is_windows():
@@ -524,10 +533,7 @@ def insert_chunks(conn: sqlite3.Connection, file_path: str, chunks: list) -> int
         triggers defined in the schema, so callers do not need to touch
         ``chunks_fts`` directly.
     """
-    rows = [
-        (file_path, c.chunk_index, c.text, c.char_start, c.char_end)
-        for c in chunks
-    ]
+    rows = [(file_path, c.chunk_index, c.text, c.char_start, c.char_end) for c in chunks]
     with transaction(conn):
         from . import vector_store
 
@@ -637,8 +643,7 @@ def upsert_node(
         ).fetchone()
     if existing:
         conn.execute(
-            "UPDATE nodes SET label = ?, embedding = ?, metadata = ?, "
-            "user_edited = ? WHERE id = ?",
+            "UPDATE nodes SET label = ?, embedding = ?, metadata = ?, user_edited = ? WHERE id = ?",
             (label, embedding, metadata_json, 1 if user_edited else 0, existing["id"]),
         )
         return int(existing["id"])
@@ -759,7 +764,7 @@ def cache_put(
     else:
         params = (key, level, result_json, model_used)
     conn.execute(
-        f"INSERT INTO llm_cache(cache_key, cache_level, result_json, model_used, expires_at) "
+        f"INSERT INTO llm_cache(cache_key, cache_level, result_json, model_used, expires_at) "  # noqa: S608 - {expires_at_expr} is 'NULL' or 'unixepoch() + ?', both safe
         f"VALUES (?, ?, ?, ?, {expires_at_expr}) "
         f"ON CONFLICT(cache_key) DO UPDATE SET "
         f"  cache_level = excluded.cache_level, "
@@ -858,11 +863,15 @@ def upsert_file(conn: sqlite3.Connection, record: FileRecord) -> int:
 
 
 def find_by_hash(conn: sqlite3.Connection, content_hash: str) -> sqlite3.Row | None:
-    return conn.execute("SELECT * FROM files WHERE content_hash = ? LIMIT 1", (content_hash,)).fetchone()
+    return conn.execute(
+        "SELECT * FROM files WHERE content_hash = ? LIMIT 1", (content_hash,)
+    ).fetchone()
 
 
 def get_file_by_path(conn: sqlite3.Connection, path: str) -> sqlite3.Row | None:
-    return conn.execute("SELECT * FROM files WHERE original_path = ? OR current_path = ? LIMIT 1", (path, path)).fetchone()
+    return conn.execute(
+        "SELECT * FROM files WHERE original_path = ? OR current_path = ? LIMIT 1", (path, path)
+    ).fetchone()
 
 
 def set_current_path(conn: sqlite3.Connection, file_id: int, current_path: str) -> None:
@@ -891,7 +900,14 @@ def mark_user_edited(conn: sqlite3.Connection, file_id: int, edited: bool = True
     conn.execute("UPDATE files SET user_edited = ? WHERE id = ?", (1 if edited else 0, file_id))
 
 
-def add_undo_log(conn: sqlite3.Connection, action: str, file_id: int, from_path: str, to_path: str, timestamp: str) -> int:
+def add_undo_log(
+    conn: sqlite3.Connection,
+    action: str,
+    file_id: int,
+    from_path: str,
+    to_path: str,
+    timestamp: str,
+) -> int:
     cursor = conn.execute(
         "INSERT INTO undo_log(action, file_id, from_path, to_path, timestamp, reversed) VALUES (?, ?, ?, ?, ?, 0)",
         (action, file_id, from_path, to_path, timestamp),
@@ -903,7 +919,9 @@ def add_undo_log(conn: sqlite3.Connection, action: str, file_id: int, from_path:
 
 
 def get_last_undo(conn: sqlite3.Connection) -> sqlite3.Row | None:
-    return conn.execute("SELECT * FROM undo_log WHERE reversed = 0 ORDER BY id DESC LIMIT 1").fetchone()
+    return conn.execute(
+        "SELECT * FROM undo_log WHERE reversed = 0 ORDER BY id DESC LIMIT 1"
+    ).fetchone()
 
 
 def reverse_undo(conn: sqlite3.Connection, undo_id: int) -> None:
@@ -1064,6 +1082,7 @@ def backup_database(data_dir: Path, max_backups: int = 3) -> Path | None:
             pass
     try:
         import shutil
+
         shutil.copy2(src, b1)
         logging.info("Database backed up to %s", b1)
         return b1
@@ -1084,6 +1103,7 @@ def restore_from_backup(data_dir: Path) -> bool:
         if candidate.is_file():
             try:
                 import shutil
+
                 shutil.copy2(candidate, src)
                 logging.info("Restored database from backup %s", candidate)
                 return True
@@ -1117,8 +1137,12 @@ def checkpoint_wal(conn: sqlite3.Connection, mode: str = "PASSIVE") -> None:
     a timer. ``TRUNCATE`` fully resets the WAL but must not run while
     other connections are active.
     """
+    _VALID_MODES = {"PASSIVE", "FULL", "RESTART", "TRUNCATE"}
+    if mode not in _VALID_MODES:
+        raise ValueError(f"Invalid WAL checkpoint mode: {mode!r}")
     try:
-        conn.execute(f"PRAGMA wal_checkpoint({mode})")
+        # Mode is validated against a whitelist above, so f-string is safe
+        conn.execute(f"PRAGMA wal_checkpoint({mode})")  # noqa: S608
     except sqlite3.OperationalError as exc:
         logging.warning("WAL checkpoint (%s) failed: %s", mode, exc)
 

@@ -25,7 +25,9 @@ from pathlib import Path
 from golem.constants import APP_NAME, APP_VERSION
 
 
-def _run(args: list[str], env: dict[str, str] | None = None, timeout: float = 30.0) -> subprocess.CompletedProcess[str]:
+def _run(
+    args: list[str], env: dict[str, str] | None = None, timeout: float = 30.0
+) -> subprocess.CompletedProcess[str]:
     """Run ``python main.py <args>`` and return the completed process.
 
     The test always uses ``--no-tray --no-watcher --no-hotkey`` so we
@@ -53,6 +55,7 @@ class MainCliSmokeTests(unittest.TestCase):
 
     def _rm_tmp(self) -> None:
         import shutil
+
         shutil.rmtree(self.tmp, ignore_errors=True)
 
     def test_version_flag_prints_app_name_and_version(self) -> None:
@@ -113,6 +116,7 @@ class MainCliSmokeTests(unittest.TestCase):
 
         # Round-trip: open the exported file and confirm the data is in it.
         import sqlite3
+
         out = sqlite3.connect(str(dest))
         try:
             row = out.execute("SELECT value FROM settings WHERE key = 'watched_folder'").fetchone()

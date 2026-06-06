@@ -70,11 +70,16 @@ def ensure_unique_path(path: Path) -> Path:
 
 
 def is_hidden_or_system_dir(name: str) -> bool:
-    return name.startswith(".") or name.startswith("$") or name in {
-        "System Volume Information",
-        "$Recycle.Bin",
-        "$RECYCLE.BIN",
-    }
+    return (
+        name.startswith(".")
+        or name.startswith("$")
+        or name
+        in {
+            "System Volume Information",
+            "$Recycle.Bin",
+            "$RECYCLE.BIN",
+        }
+    )
 
 
 def normalize_tags(tags: Iterable[str]) -> list[str]:
@@ -107,7 +112,7 @@ def within_root(path: Path, root: Path) -> bool:
 
 
 def safe_move(src: Path, dst: Path) -> None:
-    '''Move src to dst reliably across platforms.
+    """Move src to dst reliably across platforms.
 
     On Windows, shutil.move raises when crossing volume boundaries
     (e.g. watched folder on C: and vault on D:). On macOS, it can fail when
@@ -119,7 +124,7 @@ def safe_move(src: Path, dst: Path) -> None:
     The destination's parent is created if missing. The destination will
     not exist before this call unless it was created concurrently; that
     case is left to the caller (use ensure_unique_path upstream).
-    '''
+    """
     dst.parent.mkdir(parents=True, exist_ok=True)
     try:
         shutil.move(str(src), str(dst))
@@ -136,7 +141,4 @@ def safe_move(src: Path, dst: Path) -> None:
         # The copy succeeded but we couldn't remove the source. The user
         # now has a duplicate. Surface a clear error so the caller can
         # log and decide how to recover.
-        raise OSError(
-            f"Copied {src} to {dst} but failed to delete the source: {exc}"
-        ) from exc
-
+        raise OSError(f"Copied {src} to {dst} but failed to delete the source: {exc}") from exc

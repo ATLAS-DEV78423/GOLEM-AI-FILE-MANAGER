@@ -7,16 +7,16 @@ Tests cover:
 - with_retry basic and failure paths
 - CachedSummarizer cache integration
 """
+
 from __future__ import annotations
 
 import json
 import tempfile
 import unittest
 from pathlib import Path
-from unittest.mock import MagicMock, patch
+from unittest.mock import MagicMock
 
 from golem.ai import (
-    CACHE_LEVEL_EXACT,
     _SENTINEL,
     CachedSummarizer,
     build_cache_key,
@@ -152,15 +152,18 @@ class TestCachedSummarizer(unittest.TestCase):
             clean_name="Cached",
         )
         summarizer = CachedSummarizer(
-            inner, self.db_path,
+            inner,
+            self.db_path,
             cache_get_fn=lambda conn, key: {
-                "result_json": json.dumps({
-                    "summary": "cached",
-                    "tags": ["a"],
-                    "key_contents": "c",
-                    "category": "Other",
-                    "clean_name": "Cached",
-                }),
+                "result_json": json.dumps(
+                    {
+                        "summary": "cached",
+                        "tags": ["a"],
+                        "key_contents": "c",
+                        "category": "Other",
+                        "clean_name": "Cached",
+                    }
+                ),
             },
             cache_put_fn=lambda conn, key, level, result_json, ttl_seconds=None: None,
         )
@@ -181,11 +184,14 @@ class TestCachedSummarizer(unittest.TestCase):
         )
         cached_results: dict[str, tuple[int, str]] = {}
 
-        def cache_put(conn, key: str, level: int, result_json: str, ttl_seconds: int | None = None) -> None:
+        def cache_put(
+            conn, key: str, level: int, result_json: str, ttl_seconds: int | None = None
+        ) -> None:
             cached_results[key] = (level, result_json)
 
         summarizer = CachedSummarizer(
-            inner, self.db_path,
+            inner,
+            self.db_path,
             cache_get_fn=lambda conn, key: None,  # cache miss
             cache_put_fn=cache_put,
         )
@@ -198,7 +204,8 @@ class TestCachedSummarizer(unittest.TestCase):
         inner = MagicMock()
         inner.search_rerank.return_value = "/path/to/file.md"
         summarizer = CachedSummarizer(
-            inner, self.db_path,
+            inner,
+            self.db_path,
             cache_get_fn=lambda conn, key: {
                 "result_json": json.dumps({"result": "/cached/path.md"}),
             },
@@ -215,7 +222,8 @@ class TestCachedSummarizer(unittest.TestCase):
         inner.get_file_metadata.side_effect = RuntimeError("API unreachable")
 
         summarizer = CachedSummarizer(
-            inner, self.db_path,
+            inner,
+            self.db_path,
             cache_get_fn=lambda conn, key: None,
             cache_put_fn=lambda conn, key, level, result_json, ttl_seconds=None: None,
         )

@@ -8,6 +8,7 @@ Exercises the complete user flow:
   5. Verify crash marker lifecycle
   6. Verify DB backup rotation
 """
+
 from __future__ import annotations
 
 import tempfile
@@ -54,6 +55,7 @@ class FullPipelineTests(unittest.TestCase):
         except Exception:
             pass
         import shutil
+
         shutil.rmtree(self.sandbox, ignore_errors=True)
 
     # ------------------------------------------------------------------
@@ -82,7 +84,9 @@ class FullPipelineTests(unittest.TestCase):
 
         # Run the scan
         result = scan_folder(
-            self.conn, self.watched, self.vault,
+            self.conn,
+            self.watched,
+            self.vault,
             HeuristicSummarizer(),
             log=lambda msg: None,
             dry_run=False,
@@ -111,7 +115,9 @@ class FullPipelineTests(unittest.TestCase):
         """In dry-run mode, files must be indexed but NOT moved."""
         self._write("test.txt", "dry run test content")
         result = scan_folder(
-            self.conn, self.watched, self.vault,
+            self.conn,
+            self.watched,
+            self.vault,
             HeuristicSummarizer(),
             dry_run=True,
         )
@@ -131,7 +137,9 @@ class FullPipelineTests(unittest.TestCase):
         self._write("report_march.txt", "march financial report with budget details")
         self._write("notes_march.txt", "personal journal entry for march")
         scan_folder(
-            self.conn, self.watched, self.vault,
+            self.conn,
+            self.watched,
+            self.vault,
             HeuristicSummarizer(),
             log=lambda msg: None,
         )
@@ -155,7 +163,9 @@ class FullPipelineTests(unittest.TestCase):
         """Undo last must move the file back to its original location."""
         self._write("undo_test.txt", "content for undo test")
         scan_folder(
-            self.conn, self.watched, self.vault,
+            self.conn,
+            self.watched,
+            self.vault,
             HeuristicSummarizer(),
             log=lambda msg: None,
         )
@@ -174,7 +184,9 @@ class FullPipelineTests(unittest.TestCase):
         """If the original location is now occupied, undo must use a unique path."""
         self._write("collision.txt", "original content")
         scan_folder(
-            self.conn, self.watched, self.vault,
+            self.conn,
+            self.watched,
+            self.vault,
             HeuristicSummarizer(),
             log=lambda msg: None,
         )
@@ -232,9 +244,7 @@ class FullPipelineTests(unittest.TestCase):
 
         # Verify the files table is back
         with closing(connect(self.db_path)) as conn2:
-            tables = conn2.execute(
-                "SELECT name FROM sqlite_master WHERE type='table'"
-            ).fetchall()
+            tables = conn2.execute("SELECT name FROM sqlite_master WHERE type='table'").fetchall()
             names = {t["name"] for t in tables}
             self.assertIn("files", names)
 
@@ -262,13 +272,22 @@ class FullPipelineTests(unittest.TestCase):
         class _StubUI:
             def __init__(self, *a, **kw):
                 self.root = _StubRoot()
-            def show_onboarding(self): pass
-            def show_popup(self): pass
-            def set_status(self, m): pass
-            def run(self): pass
+
+            def show_onboarding(self):
+                pass
+
+            def show_popup(self):
+                pass
+
+            def set_status(self, m):
+                pass
+
+            def run(self):
+                pass
 
         class _StubRoot:
-            def after(self, ms, fn): return None
+            def after(self, ms, fn):
+                return None
 
         class _StubTray2:
             def __init__(self, callbacks=None):
@@ -276,18 +295,32 @@ class FullPipelineTests(unittest.TestCase):
                 self.callbacks.dry_run = False
                 self.callbacks.paused = False
                 self.callbacks.autostart_enabled = False
-            def start(self): pass
-            def stop(self): pass
-            def disable(self): pass
-            def set_busy(self, b): pass
-            def notify(self, t, m): pass
-            def set_paused_icon(self, p): pass
 
-        with patch("golem.app.DesktopApp", _StubUI), \
-             patch("golem.app.TrayController", _StubTray2), \
-             patch("golem.app.PollingWatcher", MagicMock), \
-             patch("golem.app.default_data_dir", return_value=data_dir), \
-             patch("golem.app.ensure_db_file", return_value=self.db_path):
+            def start(self):
+                pass
+
+            def stop(self):
+                pass
+
+            def disable(self):
+                pass
+
+            def set_busy(self, b):
+                pass
+
+            def notify(self, t, m):
+                pass
+
+            def set_paused_icon(self, p):
+                pass
+
+        with (
+            patch("golem.app.DesktopApp", _StubUI),
+            patch("golem.app.TrayController", _StubTray2),
+            patch("golem.app.PollingWatcher", MagicMock),
+            patch("golem.app.default_data_dir", return_value=data_dir),
+            patch("golem.app.ensure_db_file", return_value=self.db_path),
+        ):
             app = GolemApplication()
             # Marker should exist after init
             self.assertTrue(marker.exists(), "Crash marker not created on init")
@@ -320,13 +353,22 @@ class FullPipelineTests(unittest.TestCase):
 
         loaded = AppConfig.from_settings(get_settings(self.conn))
         for attr in [
-            "watched_folder", "vault_folder", "llm_provider", "llm_api_key",
-            "llm_model", "llm_base_url", "dry_run", "watch_enabled",
-            "confidence_threshold", "terms_accepted", "terms_version",
+            "watched_folder",
+            "vault_folder",
+            "llm_provider",
+            "llm_api_key",
+            "llm_model",
+            "llm_base_url",
+            "dry_run",
+            "watch_enabled",
+            "confidence_threshold",
+            "terms_accepted",
+            "terms_version",
             "autostart_enabled",
         ]:
             self.assertEqual(
-                getattr(original, attr), getattr(loaded, attr),
+                getattr(original, attr),
+                getattr(loaded, attr),
                 f"Mismatch for config attribute {attr}",
             )
 

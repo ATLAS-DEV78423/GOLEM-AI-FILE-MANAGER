@@ -4,6 +4,7 @@ The watchdog dependency is optional. When it is not installed,
 ``is_available()`` returns False and ``start_event_watcher`` returns
 None. These tests verify both paths.
 """
+
 from __future__ import annotations
 
 import tempfile

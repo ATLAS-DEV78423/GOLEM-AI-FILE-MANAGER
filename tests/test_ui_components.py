@@ -4,6 +4,7 @@ We test dataclass construction, rendering helpers, row conversion,
 and any non-widget logic. Widget-building tests require a display
 and are excluded from CI.
 """
+
 from __future__ import annotations
 
 import unittest
@@ -185,10 +186,12 @@ class HoverListLogicTests(unittest.TestCase):
 
     def test_set_rows_normalizes_dicts(self) -> None:
         hl = self._make_hl()
-        hl.set_rows([
-            {"primary": "X", "secondary": "Y", "payload": "/x"},
-            {"primary": "Z", "payload": "/z"},
-        ])
+        hl.set_rows(
+            [
+                {"primary": "X", "secondary": "Y", "payload": "/x"},
+                {"primary": "Z", "payload": "/z"},
+            ]
+        )
         self.assertEqual(len(hl._rows), 2)
         self.assertEqual(hl._rows[0].primary, "X")
         self.assertEqual(hl._rows[0].secondary, "Y")
@@ -254,6 +257,7 @@ class CategoryBadgeTests(unittest.TestCase):
 
     def test_known_category_returns_color(self) -> None:
         from golem.ui_theme import COLORS
+
         known = ["finance", "research", "design", "code", "media", "personal", "legal", "other"]
         for key in known:
             color = getattr(COLORS.category, key, None)
@@ -262,6 +266,7 @@ class CategoryBadgeTests(unittest.TestCase):
 
     def test_unknown_category_falls_back_to_other(self) -> None:
         from golem.ui_theme import COLORS
+
         color = getattr(COLORS.category, "nonexistent", COLORS.category.other)
         self.assertEqual(color, COLORS.category.other)
 
@@ -287,6 +292,7 @@ class SearchPopupRowConversionTests(unittest.TestCase):
             pass
         badge = None
         from golem.ui_theme import COLORS
+
         if r.get("category"):
             color = getattr(COLORS.category, r["category"].lower(), COLORS.category.other)
             badge = (r["category"], color)

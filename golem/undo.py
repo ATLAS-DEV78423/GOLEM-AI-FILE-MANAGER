@@ -24,7 +24,11 @@ def undo_last(conn, vault_folder: Path) -> dict[str, str]:
     # be on different volumes, in which case shutil.move raises.
     safe_move(to_path, restore_path)
     file_row = conn.execute("SELECT * FROM files WHERE id = ?", (row["file_id"],)).fetchone()
-    note_path = Path(file_row["obsidian_note_path"]) if file_row and file_row["obsidian_note_path"] else None
+    note_path = (
+        Path(file_row["obsidian_note_path"])
+        if file_row and file_row["obsidian_note_path"]
+        else None
+    )
     with transaction(conn):
         if file_row is not None:
             set_current_path(conn, int(row["file_id"]), str(restore_path))

@@ -1,4 +1,5 @@
 """Tests for the v2 chunks helpers in golem.indexer."""
+
 from __future__ import annotations
 
 import tempfile
@@ -10,13 +11,13 @@ from golem.indexer import (
     get_chunks_for_path,
     initialize,
     insert_chunks,
-    transaction,
 )
 
 
 def _make_chunk(idx: int, text: str, start: int = 0, end: int = 0):
     """Tiny stand-in for golem.chunker.Chunk that satisfies duck-typing."""
     from types import SimpleNamespace
+
     return SimpleNamespace(chunk_index=idx, text=text, char_start=start, char_end=end)
 
 
@@ -32,27 +33,27 @@ class TestChunksIndexer(unittest.TestCase):
                 _make_chunk(1, "second", 6, 12),
                 _make_chunk(2, "third", 13, 18),
             ]
-            count = insert_chunks(conn, "/tmp/a.txt", chunks)
+            count = insert_chunks(conn, "/tmp/a.txt", chunks)  # noqa: S108
             self.assertEqual(count, 3)
             self.assertEqual(get_chunk_count(conn), 3)
-            rows = get_chunks_for_path(conn, "/tmp/a.txt")
+            rows = get_chunks_for_path(conn, "/tmp/a.txt")  # noqa: S108  # noqa: S108
             self.assertEqual([r["chunk_index"] for r in rows], [0, 1, 2])
             self.assertEqual([r["text"] for r in rows], ["first", "second", "third"])
 
     def test_reinsert_replaces_existing_chunks(self) -> None:
         with initialize(self.db_path) as conn:
-            insert_chunks(conn, "/tmp/a.txt", [_make_chunk(i, f"old{i}") for i in range(3)])
+            insert_chunks(conn, "/tmp/a.txt", [_make_chunk(i, f"old{i}") for i in range(3)])  # noqa: S108
             new_chunks = [_make_chunk(i, f"new{i}") for i in range(5)]
-            insert_chunks(conn, "/tmp/a.txt", new_chunks)
+            insert_chunks(conn, "/tmp/a.txt", new_chunks)  # noqa: S108
             self.assertEqual(get_chunk_count(conn), 5)
-            rows = get_chunks_for_path(conn, "/tmp/a.txt")
+            rows = get_chunks_for_path(conn, "/tmp/a.txt")  # noqa: S108
             self.assertEqual([r["text"] for r in rows], [f"new{i}" for i in range(5)])
 
     def test_chunks_fts_stays_in_sync(self) -> None:
         with initialize(self.db_path) as conn:
             insert_chunks(
                 conn,
-                "/tmp/a.txt",
+                "/tmp/a.txt",  # noqa: S108
                 [_make_chunk(0, "authentication is hard"), _make_chunk(1, "second chunk")],
             )
             # FTS5 trigger should have indexed both.

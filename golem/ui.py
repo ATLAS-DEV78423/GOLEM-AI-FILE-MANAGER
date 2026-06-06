@@ -14,6 +14,7 @@ importable from this module for backward compatibility — they are the
 new themed versions from :mod:`golem.ui_search` and
 :mod:`golem.ui_onboarding`.
 """
+
 from __future__ import annotations
 
 import logging
@@ -101,6 +102,7 @@ class DesktopApp:
         # to a previous Tk interpreter).
         try:
             from .ui_icons import invalidate_cache
+
             invalidate_cache()
         except Exception:
             pass
@@ -109,6 +111,7 @@ class DesktopApp:
             import golem.ui_theme as _t
 
             from .ui_theme import Motion
+
             _t.MOTION = Motion(reduced_motion=detect_reduced_motion())
         except Exception:
             pass
@@ -189,7 +192,11 @@ class DesktopApp:
         touch widgets that don't exist yet.
         """
         try:
-            if self.popup is not None and self.popup.window is not None and self.popup.window.winfo_exists():
+            if (
+                self.popup is not None
+                and self.popup.window is not None
+                and self.popup.window.winfo_exists()
+            ):
                 latest: tuple[int, dict[str, Any]] | None = None
                 while not self._search_results.empty():
                     latest = self._search_results.get_nowait()

@@ -1,8 +1,8 @@
 from __future__ import annotations
 
 import sys
-from pathlib import Path
 from dataclasses import asdict, dataclass, field
+from pathlib import Path
 from typing import Any
 
 from . import hybrid_search
@@ -29,8 +29,10 @@ def _normalize_path(p: str) -> str:
     # Casefold on case-insensitive filesystems (Windows, macOS).
     # Also casefold Windows-style paths (drive-letter prefix) that LLMs
     # may return regardless of the host platform (e.g., on Linux CI).
-    if sys.platform.startswith("win") or sys.platform == "darwin" or (
-        len(s) >= 2 and s[1] == ":" and s[0].isalpha()
+    if (
+        sys.platform.startswith("win")
+        or sys.platform == "darwin"
+        or (len(s) >= 2 and s[1] == ":" and s[0].isalpha())
     ):
         s = s.casefold()
     return s.rstrip("/")
@@ -209,7 +211,12 @@ def _hybrid_candidates(conn, query: str) -> list[dict[str, Any]]:
                     c["rrf_score"] = float(c.get("rrf_score", 0.0) or 0.0) + 0.2
 
     # Re-sort by updated confidence after proximity boost
-    out.sort(key=lambda x: (-float(x.get("confidence", 0.0) or 0.0), -float(x.get("rrf_score", 0.0) or 0.0)))
+    out.sort(
+        key=lambda x: (
+            -float(x.get("confidence", 0.0) or 0.0),
+            -float(x.get("rrf_score", 0.0) or 0.0),
+        )
+    )
     return out
 
 
@@ -247,7 +254,9 @@ def _enrich_with_graph(conn, results: list[dict[str, Any]], depth: int = 2) -> l
                         key = f"file:{label}"
                         if key not in seen_labels:
                             seen_labels.add(key)
-                            related.append({"label": label, "type": "related_file", "file_path": n_path})
+                            related.append(
+                                {"label": label, "type": "related_file", "file_path": n_path}
+                            )
                 # Sort related: tags first, then projects, then files
                 type_order = {"tag": 0, "project": 1, "related_file": 2}
                 related.sort(key=lambda x: (type_order.get(x["type"], 99), x["label"]))
@@ -304,10 +313,8 @@ def search_with_fallback(
     reranked_norm = _normalize_path(str(reranked).strip())
     for candidate in candidates:
         if (
-            _normalize_path(str(candidate.get("current_path") or ""))
-            == reranked_norm
-            or _normalize_path(str(candidate.get("original_path") or ""))
-            == reranked_norm
+            _normalize_path(str(candidate.get("current_path") or "")) == reranked_norm
+            or _normalize_path(str(candidate.get("original_path") or "")) == reranked_norm
         ):
             boosted = dict(candidate)
             boosted["confidence"] = 1.0

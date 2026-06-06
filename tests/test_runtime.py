@@ -85,7 +85,9 @@ class RuntimeTests(unittest.TestCase):
             # Block the worker so additional enqueues pile up.
             time.sleep(0.3)
 
-        watcher = PollingWatcher(folder, on_new_file, interval=0.05, debounce_seconds=1.0, queue_size=64)
+        watcher = PollingWatcher(
+            folder, on_new_file, interval=0.05, debounce_seconds=1.0, queue_size=64
+        )
         watcher.start()
         try:
             time.sleep(0.2)
@@ -102,4 +104,3 @@ class RuntimeTests(unittest.TestCase):
             # maybe one more after the debounce window). Definitely not 4+.
             self.assertLessEqual(len(seen), 3, f"debounce failed: {len(seen)} dispatches")
             self.assertGreaterEqual(len(seen), 1)
-

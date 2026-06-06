@@ -1,4 +1,5 @@
 """Verify v2 chunks and chunks_fts tables are created by initialize()."""
+
 from __future__ import annotations
 
 import unittest
@@ -58,6 +59,7 @@ class TestChunksSchema(unittest.TestCase):
 
     def _tmp(self) -> str:
         import tempfile
+
         return tempfile.mkdtemp()
 
 

@@ -124,7 +124,7 @@ class TrayController:
         except Exception:
             return
 
-        low_rgba: tuple[int, int, int, int] = (224, 160, 96, 255)   # matches #e0a060
+        low_rgba: tuple[int, int, int, int] = (224, 160, 96, 255)  # matches #e0a060
         high_rgba: tuple[int, int, int, int] = (255, 200, 140, 255)  # warm peak
 
         try:
@@ -182,7 +182,9 @@ class TrayController:
 
         menu = pystray.Menu(
             pystray.MenuItem("Search files", lambda _icon, _item: self.callbacks.on_search()),
-            pystray.MenuItem("Re-scan watched folder", lambda _icon, _item: self.callbacks.on_rescan()),
+            pystray.MenuItem(
+                "Re-scan watched folder", lambda _icon, _item: self.callbacks.on_rescan()
+            ),
             pystray.Menu.SEPARATOR,
             pystray.MenuItem(
                 _make_autostart_label(),
@@ -192,13 +194,19 @@ class TrayController:
                 _make_dry_run_label(),
                 lambda _icon, _item: self.callbacks.on_toggle_dry_run(),
             ),
-            pystray.MenuItem("Undo last organization", lambda _icon, _item: self.callbacks.on_undo()),
+            pystray.MenuItem(
+                "Undo last organization", lambda _icon, _item: self.callbacks.on_undo()
+            ),
             pystray.Menu.SEPARATOR,
             pystray.MenuItem("Settings", lambda _icon, _item: self.callbacks.on_settings()),
-            pystray.MenuItem("Open data folder", lambda _icon, _item: self.callbacks.on_open_data_folder()),
+            pystray.MenuItem(
+                "Open data folder", lambda _icon, _item: self.callbacks.on_open_data_folder()
+            ),
             pystray.MenuItem("View log", lambda _icon, _item: self.callbacks.on_view_log()),
             pystray.Menu.SEPARATOR,
-            pystray.MenuItem("Check for updates", lambda _icon, _item: self.callbacks.on_check_updates()),
+            pystray.MenuItem(
+                "Check for updates", lambda _icon, _item: self.callbacks.on_check_updates()
+            ),
             pystray.MenuItem("About GOLEM", lambda _icon, _item: self.callbacks.on_about()),
             pystray.MenuItem("Reset all settings", lambda _icon, _item: self.callbacks.on_reset()),
             pystray.Menu.SEPARATOR,

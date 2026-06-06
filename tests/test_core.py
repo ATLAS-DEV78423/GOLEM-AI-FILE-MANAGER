@@ -34,6 +34,7 @@ class CoreTests(unittest.TestCase):
     def tearDown(self) -> None:
         if self._sandbox:
             shutil.rmtree(self._sandbox, ignore_errors=True)
+
     def test_txt_extraction(self) -> None:
         path = Path(self._tmpdir()) / "note.txt"
         path.write_text("hello world", encoding="utf-8")
@@ -69,13 +70,26 @@ class CoreTests(unittest.TestCase):
 
     def test_heuristic_summarizer(self) -> None:
         summarizer = HeuristicSummarizer()
-        metadata = summarizer.get_file_metadata("invoice_2024.pdf", "Invoice for office supplies and payment due")
+        metadata = summarizer.get_file_metadata(
+            "invoice_2024.pdf", "Invoice for office supplies and payment due"
+        )
         self.assertIn(metadata.category, {"Finance", "Other"})
         self.assertTrue(metadata.clean_name)
 
     def test_provider_registry_lists_major_backends(self) -> None:
         providers = {key for key, _ in provider_choices()}
-        self.assertTrue({"heuristic", "groq", "openai", "openrouter", "anthropic", "gemini", "xai", "nvidia_nim"}.issubset(providers))
+        self.assertTrue(
+            {
+                "heuristic",
+                "groq",
+                "openai",
+                "openrouter",
+                "anthropic",
+                "gemini",
+                "xai",
+                "nvidia_nim",
+            }.issubset(providers)
+        )
 
     def test_build_summarizer_without_key_uses_heuristics(self) -> None:
         summarizer = build_summarizer("openai", "", "", "")
@@ -116,6 +130,7 @@ class CoreTests(unittest.TestCase):
         # Force the DB transaction to fail by closing the connection first.
         # We patch upsert_file via monkey-patching to raise mid-transaction.
         from golem import scanner as scanner_mod
+
         original_upsert = scanner_mod.upsert_file
 
         def broken_upsert(*args, **kwargs):
@@ -156,10 +171,13 @@ class CoreTests(unittest.TestCase):
         conn.commit()
 
         with sqlite3.connect(db_path) as conn2:
-            raw_value = conn2.execute("SELECT value FROM settings WHERE key = 'groq_api_key'").fetchone()[0]
+            raw_value = conn2.execute(
+                "SELECT value FROM settings WHERE key = 'groq_api_key'"
+            ).fetchone()[0]
         self.assertNotEqual(raw_value, "super-secret-key")
-        self.assertTrue(str(raw_value).startswith("dpapi:") or str(raw_value).startswith("nekrypt:"),
-            f"Expected dpapi: or nekrypt: prefix, got: {raw_value[:30]}..."
+        self.assertTrue(
+            str(raw_value).startswith("dpapi:") or str(raw_value).startswith("nekrypt:"),
+            f"Expected dpapi: or nekrypt: prefix, got: {raw_value[:30]}...",
         )
         settings = get_settings(conn)
         self.assertEqual(settings["groq_api_key"], "super-secret-key")
@@ -197,12 +215,22 @@ class CoreTests(unittest.TestCase):
         db_path = Path(self._tmpdir()) / "golem.db"
         conn = initialize(db_path)
         record = FileRecord(
-            original_filename="alpha.txt", clean_filename="Alpha",
-            original_path="C:/tmp/alpha.txt", current_path="C:/tmp/alpha.txt",
-            file_type="txt", size_kb=1.0, content_hash="hash:1", duplicate_of=None,
-            extracted_text="alpha", summary="alpha", tags="alpha", key_contents="alpha",
-            category="Other", obsidian_note_path="",
-            date_indexed="2026-01-01T00:00:00Z", last_modified="2026-01-01T00:00:00Z",
+            original_filename="alpha.txt",
+            clean_filename="Alpha",
+            original_path="C:/tmp/alpha.txt",
+            current_path="C:/tmp/alpha.txt",
+            file_type="txt",
+            size_kb=1.0,
+            content_hash="hash:1",
+            duplicate_of=None,
+            extracted_text="alpha",
+            summary="alpha",
+            tags="alpha",
+            key_contents="alpha",
+            category="Other",
+            obsidian_note_path="",
+            date_indexed="2026-01-01T00:00:00Z",
+            last_modified="2026-01-01T00:00:00Z",
             index_status="done",
         )
         with transaction(conn):
@@ -242,6 +270,7 @@ class CoreTests(unittest.TestCase):
     def test_full_hash_detects_distinct_files(self) -> None:
         """Files that share a prefix but differ in the middle must not collide."""
         from golem.scanner import _content_hash
+
         a = Path(self._tmpdir()) / "a.bin"
         b = Path(self._tmpdir()) / "b.bin"
         a.write_bytes(b"\x01" * 200_000 + b"\x02" * 100)
@@ -261,6 +290,7 @@ class CoreTests(unittest.TestCase):
             AnthropicSummarizer,
             build_summarizer,
         )
+
         # Pick a provider that has an env var. We just need a key that's
         # not the heuristic provider.
         provider = "anthropic"
@@ -273,6 +303,7 @@ class CoreTests(unittest.TestCase):
     def test_search_rerank_path_comparison_is_case_insensitive(self) -> None:
         """The LLM rerank validator must accept paths in different case."""
         from golem.search import _normalize_path
+
         self.assertEqual(_normalize_path("C:\\Foo\\Bar.txt"), _normalize_path("c:/foo/bar.txt"))
         self.assertEqual(_normalize_path("C:\\Foo\\Bar.txt"), _normalize_path("C:\\FOO\\BAR.TXT"))
         self.assertNotEqual(_normalize_path("C:\\foo.txt"), _normalize_path("C:\\bar.txt"))
@@ -282,6 +313,7 @@ class CoreTests(unittest.TestCase):
         from unittest.mock import patch
 
         from golem.utils import safe_move
+
         src = Path(self._tmpdir()) / "src.txt"
         dst = Path(self._tmpdir()) / "dst.txt"
         src.write_text("payload", encoding="utf-8")
@@ -297,11 +329,14 @@ class CoreTests(unittest.TestCase):
         from unittest.mock import patch
 
         from golem.utils import safe_move
+
         src = Path(self._tmpdir()) / "src.txt"
         dst = Path(self._tmpdir()) / "dst.txt"
         src.write_text("payload", encoding="utf-8")
-        with patch("golem.utils.shutil.move", side_effect=OSError("simulated cross-volume")), \
-             patch("golem.utils.Path.unlink", side_effect=OSError("permission denied")):
+        with (
+            patch("golem.utils.shutil.move", side_effect=OSError("simulated cross-volume")),
+            patch("golem.utils.Path.unlink", side_effect=OSError("permission denied")),
+        ):
             with self.assertRaises(OSError) as ctx:
                 safe_move(src, dst)
         self.assertIn("failed to delete the source", str(ctx.exception))
@@ -321,10 +356,10 @@ class CoreTests(unittest.TestCase):
             content_hash="abc",
             duplicate_of=None,
             extracted_text="ignored",
-            summary='summary\n---\nattack: yes',
-            tags='alpha,beta\nextra',
-            key_contents='key\ncontents',
-            category='Other\nInjected',
+            summary="summary\n---\nattack: yes",
+            tags="alpha,beta\nextra",
+            key_contents="key\ncontents",
+            category="Other\nInjected",
             obsidian_note_path="",
             date_indexed="2026-05-31T00:00:00Z",
             last_modified="2026-05-31T00:00:00Z",
@@ -352,13 +387,25 @@ class CoreTests(unittest.TestCase):
         db_path = Path(self._tmpdir()) / "golem.db"
         conn = initialize(db_path)
         original = FileRecord(
-            original_filename="doc.txt", clean_filename="Doc",
-            original_path="C:/tmp/doc.txt", current_path="C:/tmp/doc.txt",
-            file_type="txt", size_kb=1.0, content_hash="hash-1", duplicate_of=None,
-            extracted_text="", summary="v1 summary", tags="t1", key_contents="k1",
-            category="Other", obsidian_note_path="",
-            date_indexed="2026-01-01T00:00:00Z", last_modified="2026-01-01T00:00:00Z",
-            index_status="done", user_edited=1)
+            original_filename="doc.txt",
+            clean_filename="Doc",
+            original_path="C:/tmp/doc.txt",
+            current_path="C:/tmp/doc.txt",
+            file_type="txt",
+            size_kb=1.0,
+            content_hash="hash-1",
+            duplicate_of=None,
+            extracted_text="",
+            summary="v1 summary",
+            tags="t1",
+            key_contents="k1",
+            category="Other",
+            obsidian_note_path="",
+            date_indexed="2026-01-01T00:00:00Z",
+            last_modified="2026-01-01T00:00:00Z",
+            index_status="done",
+            user_edited=1,
+        )
         with transaction(conn):
             file_id = upsert_file(conn, original)
         # Confirm flag is set
@@ -366,17 +413,32 @@ class CoreTests(unittest.TestCase):
         self.assertEqual(row["user_edited"], 1)
         # Now re-upsert with a fresh record that has user_edited=0
         updated = FileRecord(
-            original_filename="doc.txt", clean_filename="Doc Renamed",
-            original_path="C:/tmp/doc.txt", current_path="C:/tmp/doc.txt",
-            file_type="txt", size_kb=2.0, content_hash="hash-1", duplicate_of=None,
-            extracted_text="", summary="v2 summary", tags="t2", key_contents="k2",
-            category="Finance", obsidian_note_path="C:/vault/note.md",
-            date_indexed="2026-02-01T00:00:00Z", last_modified="2026-02-01T00:00:00Z",
-            index_status="done", user_edited=0)
+            original_filename="doc.txt",
+            clean_filename="Doc Renamed",
+            original_path="C:/tmp/doc.txt",
+            current_path="C:/tmp/doc.txt",
+            file_type="txt",
+            size_kb=2.0,
+            content_hash="hash-1",
+            duplicate_of=None,
+            extracted_text="",
+            summary="v2 summary",
+            tags="t2",
+            key_contents="k2",
+            category="Finance",
+            obsidian_note_path="C:/vault/note.md",
+            date_indexed="2026-02-01T00:00:00Z",
+            last_modified="2026-02-01T00:00:00Z",
+            index_status="done",
+            user_edited=0,
+        )
         with transaction(conn):
             upsert_file(conn, updated)
         # user_edited must be preserved; other fields should have updated
-        row = conn.execute("SELECT user_edited, clean_filename, summary, size_kb, category FROM files WHERE id = ?", (file_id,)).fetchone()
+        row = conn.execute(
+            "SELECT user_edited, clean_filename, summary, size_kb, category FROM files WHERE id = ?",
+            (file_id,),
+        ).fetchone()
         self.assertEqual(row["user_edited"], 1, "user_edited flag was wiped on re-index")
         self.assertEqual(row["clean_filename"], "Doc Renamed")
         self.assertEqual(row["summary"], "v2 summary")

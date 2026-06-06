@@ -1,4 +1,5 @@
 """Tests for the paragraph -> sentence chunker."""
+
 from __future__ import annotations
 
 import unittest
@@ -62,7 +63,7 @@ class TestChunker(unittest.TestCase):
         )
 
     def test_char_offsets_are_ordered(self) -> None:
-        text = ("First paragraph. " * 200 + "\n\n" + "Second paragraph. " * 200)
+        text = "First paragraph. " * 200 + "\n\n" + "Second paragraph. " * 200
         chunks = chunk_text(text)
         for c in chunks:
             self.assertGreaterEqual(c.char_start, 0)

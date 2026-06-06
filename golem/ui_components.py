@@ -22,6 +22,7 @@ Component catalog
   and selection (used by the search popup).
 - :class:`IndeterminateBar`— thin colored progress bar.
 """
+
 from __future__ import annotations
 
 import logging
@@ -118,8 +119,15 @@ class PathField:
         self._entry.pack(side="left", fill="x", expand=True)
         # Focus ring animation for accessibility
         try:
+
             def _pf_focus_in(_e: tk.Event) -> None:
-                self._entry._golem_focus_anim = color_transition(self._entry, attribute="bordercolor", from_color=COLORS.border.DEFAULT, to_color=COLORS.accent.ring, duration_ms=160)  # type: ignore[attr-defined]
+                self._entry._golem_focus_anim = color_transition(
+                    self._entry,
+                    attribute="bordercolor",
+                    from_color=COLORS.border.DEFAULT,
+                    to_color=COLORS.accent.ring,
+                    duration_ms=160,
+                )  # type: ignore[attr-defined]
 
             def _pf_focus_out(_e: tk.Event) -> None:
                 a = getattr(self._entry, "_golem_focus_anim", None)
@@ -135,7 +143,10 @@ class PathField:
         except tk.TclError:
             pass
         self._button = ttk.Button(
-            row, text="Browse", style="Ghost.TButton", command=self._browse,
+            row,
+            text="Browse",
+            style="Ghost.TButton",
+            command=self._browse,
         )
         self._button.pack(side="left", padx=(SPACING.sm, 0))
         return self._root
@@ -174,6 +185,7 @@ class SecretField:
     _result_var: tk.StringVar = field(init=False, repr=False)
     _result_label: ttk.Label = field(init=False, repr=False)
     _showing: bool = field(init=False, default=False, repr=False)
+
     def build(self) -> tk.Frame:
         self._root = tk.Frame(self.parent, bg=COLORS.bg.panel)
         ttk.Label(self._root, text=self.label, style="Caption.TLabel").pack(
@@ -185,8 +197,15 @@ class SecretField:
         self._entry.pack(side="left", fill="x", expand=True)
 
         try:
+
             def _sf_focus_in(_e: tk.Event) -> None:
-                self._entry._golem_focus_anim = color_transition(self._entry, attribute="bordercolor", from_color=COLORS.border.DEFAULT, to_color=COLORS.accent.ring, duration_ms=160)  # type: ignore[attr-defined]
+                self._entry._golem_focus_anim = color_transition(
+                    self._entry,
+                    attribute="bordercolor",
+                    from_color=COLORS.border.DEFAULT,
+                    to_color=COLORS.accent.ring,
+                    duration_ms=160,
+                )  # type: ignore[attr-defined]
 
             def _sf_focus_out(_e: tk.Event) -> None:
                 a = getattr(self._entry, "_golem_focus_anim", None)
@@ -203,14 +222,20 @@ class SecretField:
             pass
 
         self._toggle_btn = ttk.Button(
-            row, text="Show", style="Ghost.TButton",
-            command=self._toggle, width=6,
+            row,
+            text="Show",
+            style="Ghost.TButton",
+            command=self._toggle,
+            width=6,
         )
         self._toggle_btn.pack(side="left", padx=(SPACING.xs, 0))
 
         self._test_btn = ttk.Button(
-            row, text="Test", style="Primary.TButton",
-            command=self._on_test_clicked, width=8,
+            row,
+            text="Test",
+            style="Primary.TButton",
+            command=self._on_test_clicked,
+            width=8,
         )
         self._test_btn.pack(side="left", padx=(SPACING.xs, 0))
 
@@ -235,6 +260,7 @@ class SecretField:
         self._result_var.set("Testing...")
         self._result_label.configure(foreground=COLORS.fg.tertiary)
         self._test_btn.state(["disabled"])
+
         def _run():
             try:
                 ok, msg = self.on_test()
@@ -242,14 +268,13 @@ class SecretField:
                 ok, msg = False, str(exc)
             self._test_btn.state(["!disabled"])
             self.set_result(ok, msg)
+
         self._root.after(50, _run)
 
     def set_result(self, ok: bool, message: str) -> None:
         prefix = "✓ " if ok else "✗ "
         self._result_var.set(f"{prefix}{message}")
-        self._result_label.configure(
-            foreground=COLORS.state.success if ok else COLORS.state.error
-        )
+        self._result_label.configure(foreground=COLORS.state.success if ok else COLORS.state.error)
 
     def set_testing(self, message: str = "Testing") -> None:
         self._result_var.set(message)
@@ -294,23 +319,53 @@ def PrimaryButton(
 
     def _on_enter(_e: tk.Event) -> None:
         _cancel_anim(btn)
-        btn._golem_anim = color_transition(btn, attribute="background", from_color=COLORS.accent.DEFAULT, to_color=COLORS.accent.hover, duration_ms=120)  # type: ignore[attr-defined]
+        btn._golem_anim = color_transition(
+            btn,
+            attribute="background",
+            from_color=COLORS.accent.DEFAULT,
+            to_color=COLORS.accent.hover,
+            duration_ms=120,
+        )  # type: ignore[attr-defined]
 
     def _on_leave(_e: tk.Event) -> None:
         _cancel_anim(btn)
-        btn._golem_anim = color_transition(btn, attribute="background", from_color=COLORS.accent.hover, to_color=COLORS.accent.DEFAULT, duration_ms=120)  # type: ignore[attr-defined]
+        btn._golem_anim = color_transition(
+            btn,
+            attribute="background",
+            from_color=COLORS.accent.hover,
+            to_color=COLORS.accent.DEFAULT,
+            duration_ms=120,
+        )  # type: ignore[attr-defined]
 
     def _on_press(_e: tk.Event) -> None:
         _cancel_anim(btn)
-        btn._golem_anim = color_transition(btn, attribute="background", from_color=COLORS.accent.hover, to_color=COLORS.accent.pressed, duration_ms=60)  # type: ignore[attr-defined]
+        btn._golem_anim = color_transition(
+            btn,
+            attribute="background",
+            from_color=COLORS.accent.hover,
+            to_color=COLORS.accent.pressed,
+            duration_ms=60,
+        )  # type: ignore[attr-defined]
 
     def _on_release(_e: tk.Event) -> None:
         _cancel_anim(btn)
-        btn._golem_anim = color_transition(btn, attribute="background", from_color=COLORS.accent.pressed, to_color=COLORS.accent.hover, duration_ms=120)  # type: ignore[attr-defined]
+        btn._golem_anim = color_transition(
+            btn,
+            attribute="background",
+            from_color=COLORS.accent.pressed,
+            to_color=COLORS.accent.hover,
+            duration_ms=120,
+        )  # type: ignore[attr-defined]
 
     def _on_focus_in(_e: tk.Event) -> None:
         _cancel_anim(btn)
-        btn._golem_focus_anim = color_transition(btn, attribute="bordercolor", from_color=COLORS.accent.DEFAULT, to_color=COLORS.accent.ring, duration_ms=160)  # type: ignore[attr-defined]
+        btn._golem_focus_anim = color_transition(
+            btn,
+            attribute="bordercolor",
+            from_color=COLORS.accent.DEFAULT,
+            to_color=COLORS.accent.ring,
+            duration_ms=160,
+        )  # type: ignore[attr-defined]
 
     def _on_focus_out(_e: tk.Event) -> None:
         a = getattr(btn, "_golem_focus_anim", None)
@@ -358,15 +413,33 @@ def SecondaryButton(
 
     def _on_enter(_e: tk.Event) -> None:
         _cancel_anim(btn)
-        btn._golem_anim = color_transition(btn, attribute="background", from_color=COLORS.bg.panel, to_color=COLORS.bg.hover, duration_ms=120)  # type: ignore[attr-defined]
+        btn._golem_anim = color_transition(
+            btn,
+            attribute="background",
+            from_color=COLORS.bg.panel,
+            to_color=COLORS.bg.hover,
+            duration_ms=120,
+        )  # type: ignore[attr-defined]
 
     def _on_leave(_e: tk.Event) -> None:
         _cancel_anim(btn)
-        btn._golem_anim = color_transition(btn, attribute="background", from_color=COLORS.bg.hover, to_color=COLORS.bg.panel, duration_ms=120)  # type: ignore[attr-defined]
+        btn._golem_anim = color_transition(
+            btn,
+            attribute="background",
+            from_color=COLORS.bg.hover,
+            to_color=COLORS.bg.panel,
+            duration_ms=120,
+        )  # type: ignore[attr-defined]
 
     def _on_focus_in(_e: tk.Event) -> None:
         _cancel_anim(btn)
-        btn._golem_focus_anim = color_transition(btn, attribute="bordercolor", from_color=COLORS.border.subtle, to_color=COLORS.accent.ring, duration_ms=160)  # type: ignore[attr-defined]
+        btn._golem_focus_anim = color_transition(
+            btn,
+            attribute="bordercolor",
+            from_color=COLORS.border.subtle,
+            to_color=COLORS.accent.ring,
+            duration_ms=160,
+        )  # type: ignore[attr-defined]
 
     def _on_focus_out(_e: tk.Event) -> None:
         a = getattr(btn, "_golem_focus_anim", None)
@@ -413,7 +486,9 @@ class IconButton:
         # hover/leave colour transitions.
         icon_size = max(ICON_SIZE.sm, self.size - 14)
         self._img_normal = get_icon(self.icon, size=icon_size, color=self.color, master=self.parent)
-        self._img_hover = get_icon(self.icon, size=icon_size, color=self.active_color, master=self.parent)
+        self._img_hover = get_icon(
+            self.icon, size=icon_size, color=self.active_color, master=self.parent
+        )
         frame = tk.Frame(self.parent, bg=COLORS.bg.panel)
         self._btn = tk.Button(
             frame,
@@ -516,8 +591,13 @@ def StatusPill(
     frame = tk.Frame(parent, bg=bg, bd=0, highlightthickness=0)
     padx, pady = 8, 3
     lbl = tk.Label(
-        frame, text=text, bg=bg, fg=fg,
-        font=TYPOGRAPHY.micro.font(), padx=padx, pady=pady,
+        frame,
+        text=text,
+        bg=bg,
+        fg=fg,
+        font=TYPOGRAPHY.micro.font(),
+        padx=padx,
+        pady=pady,
     )
     lbl.pack()
     return frame
@@ -529,8 +609,13 @@ def CategoryBadge(parent: tk.Misc, category: str) -> tk.Label:
     color = getattr(COLORS.category, key, COLORS.category.other)
     dot = "●"
     return tk.Label(
-        parent, text=f"{dot}  {category}", bg=COLORS.bg.panel, fg=color,
-        font=TYPOGRAPHY.caption.font(), padx=0, pady=0,
+        parent,
+        text=f"{dot}  {category}",
+        bg=COLORS.bg.panel,
+        fg=color,
+        font=TYPOGRAPHY.caption.font(),
+        padx=0,
+        pady=0,
     )
 
 
@@ -560,30 +645,51 @@ class EmptyState:
         # Icon with subtle glow ring
         glow_frame = tk.Frame(inner, bg=COLORS.bg.elevated, bd=0, highlightthickness=0)
         icon_size = 56
-        icon_canvas = tk.Canvas(glow_frame, width=icon_size, height=icon_size,
-                                bg=COLORS.bg.elevated, highlightthickness=0, bd=0)
+        icon_canvas = tk.Canvas(
+            glow_frame,
+            width=icon_size,
+            height=icon_size,
+            bg=COLORS.bg.elevated,
+            highlightthickness=0,
+            bd=0,
+        )
         icon_canvas.pack()
         # Draw rounded background
         r = icon_size // 2
-        icon_canvas.create_arc(0, 0, icon_size, icon_size, start=0, extent=360,
-                               fill=COLORS.bg.panel, outline=COLORS.border.subtle)
+        icon_canvas.create_arc(
+            0,
+            0,
+            icon_size,
+            icon_size,
+            start=0,
+            extent=360,
+            fill=COLORS.bg.panel,
+            outline=COLORS.border.subtle,
+        )
         icon_img = get_icon(self.icon, size=24, color=COLORS.fg.secondary, master=icon_canvas)
-        icon_canvas.create_image(icon_size//2, icon_size//2, image=icon_img)
+        icon_canvas.create_image(icon_size // 2, icon_size // 2, image=icon_img)
         icon_canvas.image = icon_img  # type: ignore[attr-defined]
         glow_frame.pack(pady=(0, SPACING.lg))
 
         head_lbl = ttk.Label(inner, text=self.headline, style="Title.TLabel")
         head_lbl.pack(pady=(0, SPACING.xs))
         if self.body:
-            body_lbl = ttk.Label(inner, text=self.body, style="Caption.TLabel",
-                      wraplength=380, justify="center")
+            body_lbl = ttk.Label(
+                inner, text=self.body, style="Caption.TLabel", wraplength=380, justify="center"
+            )
             body_lbl.pack(pady=(0, SPACING.lg))
         # Subtle loading pulse when used as a spinner placeholder
         if self.icon == "spinner":
             try:
                 from .ui_anim import pulse
 
-                anim = pulse(head_lbl, attribute="foreground", low=COLORS.fg.tertiary, high=COLORS.accent.DEFAULT, period_ms=900)
+                anim = pulse(
+                    head_lbl,
+                    attribute="foreground",
+                    low=COLORS.fg.tertiary,
+                    high=COLORS.accent.DEFAULT,
+                    period_ms=900,
+                )
                 # store to allow garbage collection / cancellation if needed
                 self._frame._golem_anim = anim  # type: ignore[attr-defined]
             except Exception:
@@ -599,54 +705,53 @@ class EmptyState:
 
 
 _FILE_TYPE_EMOJI: dict[str, str] = {
-    "pdf": "\U0001F4C4",
-    "docx": "\U0001F4DD",
-    "doc": "\U0001F4DD",
-    "xlsx": "\U0001F4CA",
-    "xls": "\U0001F4CA",
-    "csv": "\U0001F4CA",
-    "md": "\U0001F4CB",
-    "markdown": "\U0001F4CB",
-    "txt": "\U0001F4CB",
-    "png": "\U0001F5BC\uFE0F",
-    "jpg": "\U0001F5BC\uFE0F",
-    "jpeg": "\U0001F5BC\uFE0F",
-    "gif": "\U0001F5BC\uFE0F",
-    "svg": "\U0001F5BC\uFE0F",
-    "webp": "\U0001F5BC\uFE0F",
-    "mp4": "\U0001F3AC",
-    "mov": "\U0001F3AC",
-    "avi": "\U0001F3AC",
-    "mkv": "\U0001F3AC",
-    "webm": "\U0001F3AC",
-    "mp3": "\U0001F399\uFE0F",
-    "wav": "\U0001F399\uFE0F",
-    "flac": "\U0001F399\uFE0F",
-    "m4a": "\U0001F399\uFE0F",
-    "m4a": "\U0001F399\uFE0F",  # duplicate key kept intentionally
-    "folder": "\U0001F4C1",
-    "py": "\U0001F4BB",
-    "js": "\U0001F4BB",
-    "ts": "\U0001F4BB",
-    "jsx": "\U0001F4BB",
-    "tsx": "\U0001F4BB",
-    "html": "\U0001F4BB",
-    "css": "\U0001F4BB",
-    "json": "\U0001F4BB",
-    "yaml": "\U0001F4BB",
-    "yml": "\U0001F4BB",
-    "zip": "\U0001F4E6",
-    "rar": "\U0001F4E6",
-    "tar": "\U0001F4E6",
-    "gz": "\U0001F4E6",
-    "ppt": "\U0001F4F1",  # using presentation emoji
-    "pptx": "\U0001F4F1",
+    "pdf": "\U0001f4c4",
+    "docx": "\U0001f4dd",
+    "doc": "\U0001f4dd",
+    "xlsx": "\U0001f4ca",
+    "xls": "\U0001f4ca",
+    "csv": "\U0001f4ca",
+    "md": "\U0001f4cb",
+    "markdown": "\U0001f4cb",
+    "txt": "\U0001f4cb",
+    "png": "\U0001f5bc\ufe0f",
+    "jpg": "\U0001f5bc\ufe0f",
+    "jpeg": "\U0001f5bc\ufe0f",
+    "gif": "\U0001f5bc\ufe0f",
+    "svg": "\U0001f5bc\ufe0f",
+    "webp": "\U0001f5bc\ufe0f",
+    "mp4": "\U0001f3ac",
+    "mov": "\U0001f3ac",
+    "avi": "\U0001f3ac",
+    "mkv": "\U0001f3ac",
+    "webm": "\U0001f3ac",
+    "mp3": "\U0001f399\ufe0f",
+    "wav": "\U0001f399\ufe0f",
+    "flac": "\U0001f399\ufe0f",
+    "m4a": "\U0001f399\ufe0f",
+    "folder": "\U0001f4c1",
+    "py": "\U0001f4bb",
+    "js": "\U0001f4bb",
+    "ts": "\U0001f4bb",
+    "jsx": "\U0001f4bb",
+    "tsx": "\U0001f4bb",
+    "html": "\U0001f4bb",
+    "css": "\U0001f4bb",
+    "json": "\U0001f4bb",
+    "yaml": "\U0001f4bb",
+    "yml": "\U0001f4bb",
+    "zip": "\U0001f4e6",
+    "rar": "\U0001f4e6",
+    "tar": "\U0001f4e6",
+    "gz": "\U0001f4e6",
+    "ppt": "\U0001f4f1",  # using presentation emoji
+    "pptx": "\U0001f4f1",
 }
 
 
 def file_type_emoji(file_type: str) -> str:
     """Return the emoji icon for a given file type extension."""
-    return _FILE_TYPE_EMOJI.get(file_type.lower().strip("."), "\U0001F4CE")
+    return _FILE_TYPE_EMOJI.get(file_type.lower().strip("."), "\U0001f4ce")
 
 
 def file_type_from_name(filename: str) -> str:
@@ -656,16 +761,45 @@ def file_type_from_name(filename: str) -> str:
     _, ext = filename.rsplit(".", 1) if "." in filename else (filename, "")
     # Map extensions to semantic types
     type_map: dict[str, str] = {
-        "pdf": "pdf", "doc": "docx", "docx": "docx", "xls": "xlsx", "xlsx": "xlsx",
-        "csv": "csv", "md": "md", "txt": "txt",
-        "png": "image", "jpg": "image", "jpeg": "image", "gif": "image",
-        "svg": "image", "webp": "image",
-        "mp4": "video", "mov": "video", "avi": "video", "mkv": "video", "webm": "video",
-        "mp3": "audio", "wav": "audio", "flac": "audio", "m4a": "audio",
-        "py": "code", "js": "code", "ts": "code", "jsx": "code", "tsx": "code",
-        "html": "code", "css": "code", "json": "code", "yaml": "code", "yml": "code",
-        "zip": "archive", "rar": "archive", "tar": "archive", "gz": "archive",
-        "ppt": "presentation", "pptx": "presentation",
+        "pdf": "pdf",
+        "doc": "docx",
+        "docx": "docx",
+        "xls": "xlsx",
+        "xlsx": "xlsx",
+        "csv": "csv",
+        "md": "md",
+        "txt": "txt",
+        "png": "image",
+        "jpg": "image",
+        "jpeg": "image",
+        "gif": "image",
+        "svg": "image",
+        "webp": "image",
+        "mp4": "video",
+        "mov": "video",
+        "avi": "video",
+        "mkv": "video",
+        "webm": "video",
+        "mp3": "audio",
+        "wav": "audio",
+        "flac": "audio",
+        "m4a": "audio",
+        "py": "code",
+        "js": "code",
+        "ts": "code",
+        "jsx": "code",
+        "tsx": "code",
+        "html": "code",
+        "css": "code",
+        "json": "code",
+        "yaml": "code",
+        "yml": "code",
+        "zip": "archive",
+        "rar": "archive",
+        "tar": "archive",
+        "gz": "archive",
+        "ppt": "presentation",
+        "pptx": "presentation",
     }
     return type_map.get(ext.lower(), "unknown")
 
@@ -678,7 +812,8 @@ def file_type_from_name(filename: str) -> str:
 def SectionLabel(parent: tk.Misc, text: str) -> ttk.Label:
     """An orange, uppercase, monospace section label for grouped results."""
     lbl = ttk.Label(
-        parent, text=text,
+        parent,
+        text=text,
         style="Caption.TLabel",
         font=TYPOGRAPHY.caption.font(),
         foreground=COLORS.accent.DEFAULT,
@@ -729,8 +864,9 @@ class StepIndicator:
         for idx, name in enumerate(self.steps):
             col = tk.Frame(self._frame, bg=COLORS.bg.panel)
             col.pack(side="left", expand=True, fill="x")
-            dot = tk.Canvas(col, width=12, height=12, bg=COLORS.bg.panel,
-                            highlightthickness=0, bd=0)
+            dot = tk.Canvas(
+                col, width=12, height=12, bg=COLORS.bg.panel, highlightthickness=0, bd=0
+            )
             dot.pack(side="left", padx=(SPACING.md, SPACING.xs))
             self._dots.append(dot)
             lbl = ttk.Label(col, text=name, style="Micro.TLabel")
@@ -755,11 +891,13 @@ class StepIndicator:
                 dot.create_oval(2, 2, 10, 10, fill=color, outline=color)
             elif i == self.current:
                 # Copper ring with dark fill
-                dot.create_oval(2, 2, 10, 10, fill=COLORS.bg.panel,
-                                outline=COLORS.accent.DEFAULT, width=2)
+                dot.create_oval(
+                    2, 2, 10, 10, fill=COLORS.bg.panel, outline=COLORS.accent.DEFAULT, width=2
+                )
             else:
-                dot.create_oval(2, 2, 10, 10, fill=COLORS.bg.elevated,
-                                outline=COLORS.border.DEFAULT)
+                dot.create_oval(
+                    2, 2, 10, 10, fill=COLORS.bg.elevated, outline=COLORS.border.DEFAULT
+                )
 
 
 # ---------------------------------------------------------------------------
@@ -809,11 +947,16 @@ class HoverList:
     def build(self) -> tk.Frame:
         self._frame = tk.Frame(self.parent, bg=COLORS.bg.panel)
         self._canvas = tk.Canvas(
-            self._frame, bg=COLORS.bg.panel, bd=0, highlightthickness=0,
+            self._frame,
+            bg=COLORS.bg.panel,
+            bd=0,
+            highlightthickness=0,
             takefocus=1,
         )
         self._scrollbar = ttk.Scrollbar(
-            self._frame, orient="vertical", command=self._on_scrollbar,
+            self._frame,
+            orient="vertical",
+            command=self._on_scrollbar,
             style="Vertical.TScrollbar",
         )
         self._canvas.configure(yscrollcommand=self._scrollbar.set)
@@ -837,14 +980,16 @@ class HoverList:
             if isinstance(r, _RowSpec):
                 normalized.append(r)
             else:
-                normalized.append(_RowSpec(
-                    primary=str(r.get("primary", "")),
-                    secondary=str(r.get("secondary", "")),
-                    tertiary=str(r.get("tertiary", "")),
-                    badge=r.get("badge"),
-                    related_badges=r.get("related_badges", []),
-                    payload=r.get("payload"),
-                ))
+                normalized.append(
+                    _RowSpec(
+                        primary=str(r.get("primary", "")),
+                        secondary=str(r.get("secondary", "")),
+                        tertiary=str(r.get("tertiary", "")),
+                        badge=r.get("badge"),
+                        related_badges=r.get("related_badges", []),
+                        payload=r.get("payload"),
+                    )
+                )
         self._rows = normalized
         if self._selected >= len(self._rows):
             self._selected = len(self._rows) - 1
@@ -901,18 +1046,30 @@ class HoverList:
             y = start_y + i * row_h + 6
             bar_w = cw - 120 - int(40 * (i / num_rows))
             self._canvas.create_rectangle(
-                20, y, 20 + int(0.7 * bar_w), y + 14,
-                fill=COLORS.bg.elevated, outline="", tags=("_shimmer_row",),
+                20,
+                y,
+                20 + int(0.7 * bar_w),
+                y + 14,
+                fill=COLORS.bg.elevated,
+                outline="",
+                tags=("_shimmer_row",),
             )
             self._canvas.create_rectangle(
-                20, y + 20, 20 + int(0.4 * bar_w), y + 28,
-                fill=COLORS.bg.elevated, outline="", tags=("_shimmer_row",),
+                20,
+                y + 20,
+                20 + int(0.4 * bar_w),
+                y + 28,
+                fill=COLORS.bg.elevated,
+                outline="",
+                tags=("_shimmer_row",),
             )
         try:
             anim = shimmer_skeleton(
                 self._canvas,
-                x=-20, y=-20,
-                width=cw + 40, height=ch + 40,
+                x=-20,
+                y=-20,
+                width=cw + 40,
+                height=ch + 40,
                 base_color=COLORS.bg.panel,
                 highlight_color=COLORS.bg.elevated,
                 period_ms=1600,
@@ -1072,32 +1229,50 @@ class HoverList:
             is_hovered = idx == self._hovered and not is_selected
             if is_selected:
                 self._canvas.create_rectangle(
-                    0, y + 2, w, y + self.row_height - 2,
-                    fill=COLORS.bg.selected, outline="",
+                    0,
+                    y + 2,
+                    w,
+                    y + self.row_height - 2,
+                    fill=COLORS.bg.selected,
+                    outline="",
                 )
                 # Left accent bar
                 self._canvas.create_rectangle(
-                    0, y + 6, 3, y + self.row_height - 6,
-                    fill=COLORS.accent.DEFAULT, outline="",
+                    0,
+                    y + 6,
+                    3,
+                    y + self.row_height - 6,
+                    fill=COLORS.accent.DEFAULT,
+                    outline="",
                 )
             elif is_hovered:
                 self._canvas.create_rectangle(
-                    0, y + 2, w, y + self.row_height - 2,
-                    fill=COLORS.bg.hover, outline="",
+                    0,
+                    y + 2,
+                    w,
+                    y + self.row_height - 2,
+                    fill=COLORS.bg.hover,
+                    outline="",
                 )
 
             # Primary
             self._canvas.create_text(
-                SPACING.lg, y + self.row_height // 2 - 8,
-                text=row.primary, fill=COLORS.fg.primary,
-                font=TYPOGRAPHY.body_strong.font(), anchor="w",
+                SPACING.lg,
+                y + self.row_height // 2 - 8,
+                text=row.primary,
+                fill=COLORS.fg.primary,
+                font=TYPOGRAPHY.body_strong.font(),
+                anchor="w",
             )
             # Secondary
             if row.secondary:
                 self._canvas.create_text(
-                    SPACING.lg, y + self.row_height // 2 + 10,
-                    text=row.secondary, fill=COLORS.fg.secondary,
-                    font=TYPOGRAPHY.caption.font(), anchor="w",
+                    SPACING.lg,
+                    y + self.row_height // 2 + 10,
+                    text=row.secondary,
+                    fill=COLORS.fg.secondary,
+                    font=TYPOGRAPHY.caption.font(),
+                    anchor="w",
                     width=w - SPACING.lg * 2,
                 )
             # Match pill (why-matched — right-aligned)
@@ -1109,13 +1284,21 @@ class HoverList:
                 py = y + self.row_height // 2 - pill_h // 2
                 # Pill background with rounded look (simulated with rect)
                 self._canvas.create_rectangle(
-                    px, py, px + pill_w, py + pill_h,
-                    fill=COLORS.bg.panel, outline=pcolor, width=1,
+                    px,
+                    py,
+                    px + pill_w,
+                    py + pill_h,
+                    fill=COLORS.bg.panel,
+                    outline=pcolor,
+                    width=1,
                 )
                 self._canvas.create_text(
-                    px + pill_w // 2, py + pill_h // 2,
-                    text=ptext, fill=pcolor,
-                    font=TYPOGRAPHY.pill.font(), anchor="center",
+                    px + pill_w // 2,
+                    py + pill_h // 2,
+                    text=ptext,
+                    fill=pcolor,
+                    font=TYPOGRAPHY.pill.font(),
+                    anchor="center",
                 )
             # Badge (category) — left of match pill or right edge
             badge_right = (px - 8) if row.match_pill else (w - SPACING.lg)
@@ -1125,13 +1308,20 @@ class HoverList:
                 bx = badge_right - text_width
                 by = y + self.row_height // 2
                 self._canvas.create_rectangle(
-                    bx, by - 9, bx + text_width, by + 9,
-                    fill=COLORS.bg.elevated, outline=color,
+                    bx,
+                    by - 9,
+                    bx + text_width,
+                    by + 9,
+                    fill=COLORS.bg.elevated,
+                    outline=color,
                 )
                 self._canvas.create_text(
-                    bx + text_width // 2, by,
-                    text=text, fill=color,
-                    font=TYPOGRAPHY.micro.font(), anchor="center",
+                    bx + text_width // 2,
+                    by,
+                    text=text,
+                    fill=color,
+                    font=TYPOGRAPHY.micro.font(),
+                    anchor="center",
                 )
 
             # Related file badges (bottom row)
@@ -1144,19 +1334,31 @@ class HoverList:
                     if related_x + rtw > max_related_w:
                         break
                     self._canvas.create_rectangle(
-                        related_x, related_y - 7, related_x + rtw, related_y + 7,
-                        fill=COLORS.bg.panel, outline=rcolor,
+                        related_x,
+                        related_y - 7,
+                        related_x + rtw,
+                        related_y + 7,
+                        fill=COLORS.bg.panel,
+                        outline=rcolor,
                     )
                     self._canvas.create_text(
-                        related_x + rtw // 2, related_y,
-                        text=rtext, fill=rcolor,
-                        font=TYPOGRAPHY.kbd.font(), anchor="center",
+                        related_x + rtw // 2,
+                        related_y,
+                        text=rtext,
+                        fill=rcolor,
+                        font=TYPOGRAPHY.kbd.font(),
+                        anchor="center",
                     )
                     related_x += rtw + 4
 
         # Bottom fade — a thin gradient line at the very bottom edge
         self._canvas.create_rectangle(
-            0, h - 8, w, h, fill=COLORS.bg.panel, outline="",
+            0,
+            h - 8,
+            w,
+            h,
+            fill=COLORS.bg.panel,
+            outline="",
         )
 
 
@@ -1177,8 +1379,11 @@ class SkeletonLoader:
 
     def build(self) -> tk.Canvas:
         self._canvas = tk.Canvas(
-            self.parent, height=self.height, bg=COLORS.bg.panel,
-            bd=0, highlightthickness=0,
+            self.parent,
+            height=self.height,
+            bg=COLORS.bg.panel,
+            bd=0,
+            highlightthickness=0,
         )
         return self._canvas
 
@@ -1186,7 +1391,8 @@ class SkeletonLoader:
         self.stop()
         self._anim = shimmer_skeleton(
             self._canvas,
-            x=0, y=0,
+            x=0,
+            y=0,
             width=self._canvas.winfo_width() or 200,
             height=self.height,
             base_color=COLORS.bg.panel,
@@ -1255,15 +1461,17 @@ class StatusBar:
         inner = tk.Frame(self._frame, bg=COLORS.bg.titlebar)
         inner.pack(fill="x", padx=SPACING.lg, pady=SPACING.xs)
         # Status dot indicator (animated)
-        self._dot = tk.Canvas(inner, width=6, height=6, bg=COLORS.bg.titlebar,
-                              highlightthickness=0, bd=0)
+        self._dot = tk.Canvas(
+            inner, width=6, height=6, bg=COLORS.bg.titlebar, highlightthickness=0, bd=0
+        )
         self._dot.create_oval(0, 0, 6, 6, fill=COLORS.fg.tertiary, outline="", tags="dot")
         self._dot.pack(side="left", padx=(0, SPACING.sm))
         # Use a per-instance icon image so each window's StatusBar
         # doesn't share a PhotoImage across Tk interpreters.
         self._img_idle = get_icon("info", size=12, color=COLORS.fg.tertiary, master=inner)
         self._icon = tk.Label(
-            inner, image=self._img_idle,
+            inner,
+            image=self._img_idle,
             bg=COLORS.bg.titlebar,
         )
         self._icon.image = self._img_idle  # type: ignore[attr-defined]
@@ -1342,6 +1550,7 @@ class StatusBar:
 
 class RoundedCard(tk.Canvas):
     """A beautiful card container with rounded corners and optional left vertical accent border."""
+
     def __init__(
         self,
         parent: tk.Misc,
@@ -1351,7 +1560,7 @@ class RoundedCard(tk.Canvas):
         width: int = 1,
         radius: int = 12,
         left_accent: str | None = None,
-        **kwargs
+        **kwargs,
     ):
         super().__init__(parent, bg=COLORS.bg.canvas, bd=0, highlightthickness=0, **kwargs)
         self.card_bg = bg
@@ -1359,11 +1568,11 @@ class RoundedCard(tk.Canvas):
         self.card_width = width
         self.card_radius = radius
         self.left_accent = left_accent
-        
+
         # Frame inside the card
         self.inner_frame = tk.Frame(self, bg=bg, bd=0, highlightthickness=0)
         self._window_id = self.create_window(0, 0, window=self.inner_frame, anchor="nw")
-        
+
         self.bind("<Configure>", self._on_configure)
 
     def _on_configure(self, event: tk.Event) -> None:
@@ -1372,39 +1581,98 @@ class RoundedCard(tk.Canvas):
     def redraw(self) -> None:
         self.delete("card_bg")
         self.delete("card_border")
-        
+
         w = self.winfo_width()
         h = self.winfo_height()
         r = self.card_radius
         bg = self.card_bg
         outline = self.card_outline
         wd = self.card_width
-        
-        if w <= 2*r or h <= 2*r:
+
+        if w <= 2 * r or h <= 2 * r:
             return
-            
+
         # Draw rounded fill
-        self.create_arc(0, 0, 2*r, 2*r, start=90, extent=90, fill=bg, outline="", tags="card_bg")
-        self.create_arc(w-2*r, 0, w, 2*r, start=0, extent=90, fill=bg, outline="", tags="card_bg")
-        self.create_arc(w-2*r, h-2*r, w, h, start=270, extent=90, fill=bg, outline="", tags="card_bg")
-        self.create_arc(0, h-2*r, 2*r, h, start=180, extent=90, fill=bg, outline="", tags="card_bg")
-        self.create_rectangle(r, 0, w-r, h, fill=bg, outline="", tags="card_bg")
-        self.create_rectangle(0, r, w, h-r, fill=bg, outline="", tags="card_bg")
-        
+        self.create_arc(
+            0, 0, 2 * r, 2 * r, start=90, extent=90, fill=bg, outline="", tags="card_bg"
+        )
+        self.create_arc(
+            w - 2 * r, 0, w, 2 * r, start=0, extent=90, fill=bg, outline="", tags="card_bg"
+        )
+        self.create_arc(
+            w - 2 * r, h - 2 * r, w, h, start=270, extent=90, fill=bg, outline="", tags="card_bg"
+        )
+        self.create_arc(
+            0, h - 2 * r, 2 * r, h, start=180, extent=90, fill=bg, outline="", tags="card_bg"
+        )
+        self.create_rectangle(r, 0, w - r, h, fill=bg, outline="", tags="card_bg")
+        self.create_rectangle(0, r, w, h - r, fill=bg, outline="", tags="card_bg")
+
         # Draw borders
         if wd > 0:
-            self.create_line(r, 0, w-r, 0, fill=outline, width=wd, tags="card_border")
-            self.create_line(w, r, w, h-r, fill=outline, width=wd, tags="card_border")
-            self.create_line(r, h, w-r, h, fill=outline, width=wd, tags="card_border")
-            
+            self.create_line(r, 0, w - r, 0, fill=outline, width=wd, tags="card_border")
+            self.create_line(w, r, w, h - r, fill=outline, width=wd, tags="card_border")
+            self.create_line(r, h, w - r, h, fill=outline, width=wd, tags="card_border")
+
             l_color = self.left_accent if self.left_accent else outline
-            self.create_line(0, r, 0, h-r, fill=l_color, width=wd if not self.left_accent else wd + 1, tags="card_border")
-            
-            self.create_arc(0, 0, 2*r, 2*r, start=90, extent=90, style="arc", outline=l_color, width=wd, tags="card_border")
-            self.create_arc(w-2*r, 0, w, 2*r, start=0, extent=90, style="arc", outline=outline, width=wd, tags="card_border")
-            self.create_arc(w-2*r, h-2*r, w, h, start=270, extent=90, style="arc", outline=outline, width=wd, tags="card_border")
-            self.create_arc(0, h-2*r, 2*r, h, start=180, extent=90, style="arc", outline=l_color, width=wd, tags="card_border")
+            self.create_line(
+                0,
+                r,
+                0,
+                h - r,
+                fill=l_color,
+                width=wd if not self.left_accent else wd + 1,
+                tags="card_border",
+            )
+
+            self.create_arc(
+                0,
+                0,
+                2 * r,
+                2 * r,
+                start=90,
+                extent=90,
+                style="arc",
+                outline=l_color,
+                width=wd,
+                tags="card_border",
+            )
+            self.create_arc(
+                w - 2 * r,
+                0,
+                w,
+                2 * r,
+                start=0,
+                extent=90,
+                style="arc",
+                outline=outline,
+                width=wd,
+                tags="card_border",
+            )
+            self.create_arc(
+                w - 2 * r,
+                h - 2 * r,
+                w,
+                h,
+                start=270,
+                extent=90,
+                style="arc",
+                outline=outline,
+                width=wd,
+                tags="card_border",
+            )
+            self.create_arc(
+                0,
+                h - 2 * r,
+                2 * r,
+                h,
+                start=180,
+                extent=90,
+                style="arc",
+                outline=l_color,
+                width=wd,
+                tags="card_border",
+            )
 
         pad = r // 2
-        self.itemconfig(self._window_id, x=pad, y=pad, width=w-2*pad, height=h-2*pad)
-
+        self.itemconfig(self._window_id, x=pad, y=pad, width=w - 2 * pad, height=h - 2 * pad)

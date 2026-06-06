@@ -12,6 +12,7 @@ If watchdog is not installed (the default on a fresh checkout), the
 fall back to :class:`golem.watcher.PollingWatcher`. This keeps the
 event-driven path strictly optional.
 """
+
 from __future__ import annotations
 
 import logging
@@ -35,8 +36,8 @@ _STABILITY_SECONDS = 2.0
 _PUMP_INTERVAL_SECONDS = 0.5
 
 try:  # pragma: no cover - watchdog is optional
-    from watchdog.events import FileSystemEventHandler  # type: ignore
-    from watchdog.observers import Observer  # type: ignore
+    from watchdog.events import FileSystemEventHandler  # type: ignore[import-untyped]
+    from watchdog.observers import Observer  # type: ignore[import-untyped]
 
     _HAS_WATCHDOG = True
 except ImportError:  # pragma: no cover
@@ -44,12 +45,12 @@ except ImportError:  # pragma: no cover
     # the class definition below never sees ``None`` as a base class.
     # ``start_event_watcher`` still returns ``None`` when ``_HAS_WATCHDOG``
     # is False, so ``_StableHandler`` is never instantiated.
-    FileSystemEventHandler = object  # type: ignore
-    Observer = None  # type: ignore
+    FileSystemEventHandler = object  # type: ignore[misc,assignment]
+    Observer = None  # type: ignore[assignment]
     _HAS_WATCHDOG = False
 
 
-class _StableHandler(FileSystemEventHandler):  # type: ignore[misc]
+class _StableHandler(FileSystemEventHandler):
     """Watchdog handler that buffers events and fires once per stable file.
 
     The ``on_created`` / ``on_modified`` / ``on_moved`` callbacks all
@@ -170,7 +171,7 @@ def start_event_watcher(
         daemon=True,
         name="golem-watchdog-observer",
     )
-    observer_thread._golem_observer = observer  # type: ignore[attr-defined]
-    observer_thread._golem_stop = stop  # type: ignore[attr-defined]
+    observer_thread._golem_observer = observer
+    observer_thread._golem_stop = stop
     observer_thread.start()
     return observer_thread, handler._pump

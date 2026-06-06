@@ -5,6 +5,7 @@ is installed. When the extension is absent, the store degrades to a
 no-op (upsert/search/delete do nothing safely) and ``is_available()``
 returns False.
 """
+
 from __future__ import annotations
 
 import tempfile
@@ -17,6 +18,7 @@ from golem.indexer import initialize, insert_chunks, transaction
 
 def _chunk(idx: int, text: str):
     from types import SimpleNamespace
+
     return SimpleNamespace(chunk_index=idx, text=text, char_start=0, char_end=len(text))
 
 
@@ -37,7 +39,7 @@ class TestVectorStore(unittest.TestCase):
         with initialize(self.db_path) as conn:
             # Should not raise.
             vector_store.upsert(conn, 1, "hello", [0.0] * 384)
-            vector_store.delete_for_path(conn, "/tmp/a.txt")
+            vector_store.delete_for_path(conn, "/tmp/a.txt")  # noqa: S108
             vector_store.delete_for_chunk(conn, 1)
             self.assertEqual(
                 vector_store.search_by_embedding(conn, [0.0] * 384, top_k=10),
@@ -53,7 +55,7 @@ class TestVectorStore(unittest.TestCase):
             with transaction(conn):
                 insert_chunks(
                     conn,
-                    "/tmp/a.txt",
+                    "/tmp/a.txt",  # noqa: S108
                     [_chunk(0, "alpha"), _chunk(1, "beta")],
                 )
             out = vector_store.search_by_embedding(conn, [0.0] * 384, top_k=10)

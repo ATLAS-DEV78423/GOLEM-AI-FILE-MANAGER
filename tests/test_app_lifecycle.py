@@ -169,15 +169,18 @@ class ResetAllTests(unittest.TestCase):
             )
 
         # Build the application with the UI pieces stubbed.
-        with patch("golem.app.DesktopApp", _StubDesktopApp), patch(
-            "golem.app.TrayController", _StubTray
-        ), patch("golem.app.PollingWatcher", _StubPollingWatcher):
+        with (
+            patch("golem.app.DesktopApp", _StubDesktopApp),
+            patch("golem.app.TrayController", _StubTray),
+            patch("golem.app.PollingWatcher", _StubPollingWatcher),
+        ):
             from golem.app import GolemApplication
 
             data_dir = self.tmp / "data"
             data_dir.mkdir()
-            with patch("golem.app.default_data_dir", return_value=data_dir), patch(
-                "golem.app.ensure_db_file", return_value=self.db_path
+            with (
+                patch("golem.app.default_data_dir", return_value=data_dir),
+                patch("golem.app.ensure_db_file", return_value=self.db_path),
             ):
                 app = GolemApplication()
                 try:
@@ -211,15 +214,18 @@ class ResetAllTests(unittest.TestCase):
     def test_reset_all_triggers_onboarding(self) -> None:
         """After a reset the UI must show onboarding so the user can re-enter config."""
         stub_ui = _StubDesktopApp()
-        with patch("golem.app.DesktopApp", return_value=stub_ui), patch(
-            "golem.app.TrayController", _StubTray
-        ), patch("golem.app.PollingWatcher", _StubPollingWatcher):
+        with (
+            patch("golem.app.DesktopApp", return_value=stub_ui),
+            patch("golem.app.TrayController", _StubTray),
+            patch("golem.app.PollingWatcher", _StubPollingWatcher),
+        ):
             from golem.app import GolemApplication
 
             data_dir = self.tmp / "data"
             data_dir.mkdir()
-            with patch("golem.app.default_data_dir", return_value=data_dir), patch(
-                "golem.app.ensure_db_file", return_value=self.db_path
+            with (
+                patch("golem.app.default_data_dir", return_value=data_dir),
+                patch("golem.app.ensure_db_file", return_value=self.db_path),
             ):
                 app = GolemApplication()
                 try:
@@ -232,15 +238,18 @@ class ResetAllTests(unittest.TestCase):
     def test_save_config_starts_runtime_after_onboarding(self) -> None:
         """Completing onboarding must wake the app, not leave it inert."""
         stub_ui = _StubDesktopApp()
-        with patch("golem.app.DesktopApp", return_value=stub_ui), patch(
-            "golem.app.TrayController", _StubTray
-        ), patch("golem.app.PollingWatcher", _StubPollingWatcher):
+        with (
+            patch("golem.app.DesktopApp", return_value=stub_ui),
+            patch("golem.app.TrayController", _StubTray),
+            patch("golem.app.PollingWatcher", _StubPollingWatcher),
+        ):
             from golem.app import GolemApplication
 
             data_dir = self.tmp / "data"
             data_dir.mkdir()
-            with patch("golem.app.default_data_dir", return_value=data_dir), patch(
-                "golem.app.ensure_db_file", return_value=self.db_path
+            with (
+                patch("golem.app.default_data_dir", return_value=data_dir),
+                patch("golem.app.ensure_db_file", return_value=self.db_path),
             ):
                 app = GolemApplication()
                 started: list[bool] = []
@@ -264,15 +273,18 @@ class ResetAllTests(unittest.TestCase):
                 self.assertTrue(started, "runtime was not started after onboarding")
 
     def test_custom_data_dir_is_honored(self) -> None:
-        with patch("golem.app.DesktopApp", _StubDesktopApp), patch(
-            "golem.app.TrayController", _StubTray
-        ), patch("golem.app.PollingWatcher", _StubPollingWatcher):
+        with (
+            patch("golem.app.DesktopApp", _StubDesktopApp),
+            patch("golem.app.TrayController", _StubTray),
+            patch("golem.app.PollingWatcher", _StubPollingWatcher),
+        ):
             from golem.app import GolemApplication
 
             custom = self.tmp / "custom-data"
             custom.mkdir()
-            with patch("golem.app.default_data_dir", return_value=self.tmp / "unused"), patch(
-                "golem.app.ensure_db_file", return_value=self.db_path
+            with (
+                patch("golem.app.default_data_dir", return_value=self.tmp / "unused"),
+                patch("golem.app.ensure_db_file", return_value=self.db_path),
             ):
                 app = GolemApplication(data_dir=custom)
                 try:
@@ -295,15 +307,18 @@ class StatusBarTests(unittest.TestCase):
         initialize(self.db_path).close()
 
     def _make_app(self) -> Any:
-        with patch("golem.app.DesktopApp", _StubDesktopApp), patch(
-            "golem.app.TrayController", _StubTray
-        ), patch("golem.app.PollingWatcher", _StubPollingWatcher):
+        with (
+            patch("golem.app.DesktopApp", _StubDesktopApp),
+            patch("golem.app.TrayController", _StubTray),
+            patch("golem.app.PollingWatcher", _StubPollingWatcher),
+        ):
             from golem.app import GolemApplication
 
             data_dir = self.tmp / "data"
             data_dir.mkdir()
-            with patch("golem.app.default_data_dir", return_value=data_dir), patch(
-                "golem.app.ensure_db_file", return_value=self.db_path
+            with (
+                patch("golem.app.default_data_dir", return_value=data_dir),
+                patch("golem.app.ensure_db_file", return_value=self.db_path),
             ):
                 app = GolemApplication()
                 self.addCleanup(app.shutdown)

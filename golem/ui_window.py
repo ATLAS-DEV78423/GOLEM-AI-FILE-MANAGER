@@ -12,6 +12,7 @@ monitor, falling back to ``center`` if the platform is unsupported.
 if it would otherwise open off-screen (e.g. on a previously-attached
 laptop display).
 """
+
 from __future__ import annotations
 
 import logging
@@ -71,7 +72,10 @@ def detect_dpi_scale() -> float:
 
             out = subprocess.run(
                 ["system_profiler", "SPDisplaysDataType"],
-                capture_output=True, text=True, timeout=2.0, check=False,
+                capture_output=True,
+                text=True,
+                timeout=2.0,
+                check=False,
             )
             if "Retina" in out.stdout:
                 return 2.0
@@ -84,7 +88,11 @@ def detect_dpi_scale() -> float:
         import subprocess
 
         out = subprocess.run(
-            ["xrdb", "-query"], capture_output=True, text=True, timeout=1.0, check=False,
+            ["xrdb", "-query"],
+            capture_output=True,
+            text=True,
+            timeout=1.0,
+            check=False,
         )
         for line in out.stdout.splitlines():
             if line.startswith("Xft.dpi:"):
@@ -159,7 +167,11 @@ def enumerate_monitors() -> list[Monitor]:
                 ]
 
             MonitorEnumProc = ctypes.WINFUNCTYPE(
-                ctypes.c_int, wintypes.HMONITOR, wintypes.HDC, ctypes.POINTER(RECT), wintypes.LPARAM,
+                ctypes.c_int,
+                wintypes.HMONITOR,
+                wintypes.HDC,
+                ctypes.POINTER(RECT),
+                wintypes.LPARAM,
             )
 
             monitors: list[Monitor] = []
@@ -180,8 +192,10 @@ def enumerate_monitors() -> list[Monitor]:
                     r = info.rcMonitor
                     monitors.append(
                         Monitor(
-                            x=r.left, y=r.top,
-                            width=r.right - r.left, height=r.bottom - r.top,
+                            x=r.left,
+                            y=r.top,
+                            width=r.right - r.left,
+                            height=r.bottom - r.top,
                             is_primary=bool(info.dwFlags & 0x1),  # MONITORINFOF_PRIMARY
                         )
                     )
@@ -224,8 +238,10 @@ class Rect:
 
     def intersects(self, other: Rect) -> bool:
         return (
-            self.x < other.right and self.right > other.x
-            and self.y < other.bottom and self.bottom > other.y
+            self.x < other.right
+            and self.right > other.x
+            and self.y < other.bottom
+            and self.bottom > other.y
         )
 
 
@@ -331,6 +347,7 @@ def strip_window_chrome(window: tk.Toplevel, *, hide_titlebar: bool = True) -> N
 def attach_focus_out(window: tk.Toplevel, on_focus_out: Callable[[], None]) -> None:
     """Hide the window when it loses focus. The classic Spotlight /
     Raycast UX: click outside → palette closes."""
+
     def _watch(_event=None):
         try:
             focused = window.focus_get()
@@ -340,6 +357,7 @@ def attach_focus_out(window: tk.Toplevel, on_focus_out: Callable[[], None]) -> N
             on_focus_out()
 
     window.bind("<FocusOut>", _watch)
+
     # Poll fallback: some WMs don't deliver FocusOut for overrideredirect
     # windows reliably.
     def _poll():
@@ -351,6 +369,7 @@ def attach_focus_out(window: tk.Toplevel, on_focus_out: Callable[[], None]) -> N
         except tk.TclError:
             return
         window.after(400, _poll)
+
     window.after(400, _poll)
 
 
@@ -389,7 +408,10 @@ def detect_reduced_motion() -> bool:
 
             out = subprocess.run(
                 ["defaults", "read", "com.apple.universalaccess", "reduceMotion"],
-                capture_output=True, text=True, timeout=1.0, check=False,
+                capture_output=True,
+                text=True,
+                timeout=1.0,
+                check=False,
             )
             return out.stdout.strip() in ("1", "true", "yes")
         except (OSError, subprocess.TimeoutExpired):

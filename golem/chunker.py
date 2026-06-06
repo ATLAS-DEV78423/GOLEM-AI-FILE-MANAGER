@@ -9,6 +9,7 @@ This module is pure stdlib (re + dataclasses); it never imports any of the
 optional heavy dependencies (sentence-transformers, sqlite-vec, etc.). It
 must remain safe to call when those extras are absent.
 """
+
 from __future__ import annotations
 
 import re
