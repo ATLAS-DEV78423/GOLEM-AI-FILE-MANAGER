@@ -35,6 +35,7 @@ if [[ ! -x "$PYBIN" ]]; then
   "$PYTHON_BIN" -m venv "$VENV"
   "$PYBIN" -m pip install --upgrade pip
   "$PYBIN" -m pip install -r requirements-build.txt
+  "$PYBIN" -m pip install -e .
 fi
 
 # Step 1: Build the application bundle

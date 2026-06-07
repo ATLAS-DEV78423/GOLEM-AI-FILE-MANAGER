@@ -22,6 +22,7 @@ if [[ ! -x "$PYTHON_BIN" ]]; then
   if [[ -f "$ROOT/requirements-build.txt" ]]; then
     "$PYTHON_BIN" -m pip install -r requirements-build.txt
   fi
+  "$PYTHON_BIN" -m pip install -e .
 fi
 
 echo "Building GOLEM.app with $(basename "$PYTHON_BIN")"
