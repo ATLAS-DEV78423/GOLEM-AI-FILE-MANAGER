@@ -25,6 +25,7 @@ from __future__ import annotations
 
 import hashlib
 import logging
+from typing import TYPE_CHECKING, Any
 
 _LOG = logging.getLogger(__name__)
 
@@ -36,17 +37,19 @@ try:  # pragma: no cover - only present when [semantic] extras are installed
 
     _HAS_ST = True
 except ImportError:  # pragma: no cover - default
-    _SentenceTransformer = None  # type: ignore[assignment,misc]
+    _SentenceTransformer = None  # type: ignore[misc]
     _HAS_ST = False
 
-# Local alias for the model type, defaulting to ``object`` when
-# sentence-transformers is not installed. Using a local name (not
-# reassigning the imported class) keeps mypy happy without an
-# unused-ignore on the annotation.
-_SentenceTransformerT = type(_SentenceTransformer) if _HAS_ST else object
-
 _MODEL_NAME = "all-MiniLM-L6-v2"
-_MODEL: _SentenceTransformerT | None = None  # type: ignore[valid-type]
+_MODEL: Any | None = None
+
+if TYPE_CHECKING:
+    from sentence_transformers import SentenceTransformer as _STType
+    _SentenceTransformerT = _STType
+elif _HAS_ST:
+    _SentenceTransformerT = type(_SentenceTransformer)
+else:
+    _SentenceTransformerT = object
 
 
 def is_available() -> bool:

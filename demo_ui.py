@@ -19,12 +19,12 @@ import time
 # Ensure the project root is on sys.path
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
-from PIL import ImageGrab
 import tkinter as tk
 
-from golem.ui_theme import apply_theme, COLORS, Motion
-from golem.ui_window import apply_dpi_scaling
+from PIL import ImageGrab
 
+from golem.ui_theme import COLORS, Motion, apply_theme
+from golem.ui_window import apply_dpi_scaling
 
 # ── DEMO_RESULTS from the spec ─────────────────────────────────────
 
@@ -148,7 +148,6 @@ def main():
         root.update()
 
         # Manually trigger search (bypass debounce for demo)
-        from golem.ui_search import SearchResult
         raw_results = demo_search_handler("pricing strategy", 8)
         popup.results = popup._dicts_to_results(raw_results)
         popup._selected_idx = 0  # Select first result

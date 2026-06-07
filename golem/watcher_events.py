@@ -88,7 +88,7 @@ class _StableHandler(FileSystemEventHandler):
         with self._lock:
             self._pending[str(path)] = time.monotonic()
 
-    def on_created(self, event) -> None:  # type: ignore[no-untyped-def]
+    def on_created(self, event) -> None:
         if event.is_directory:
             return
         try:
@@ -96,7 +96,7 @@ class _StableHandler(FileSystemEventHandler):
         except Exception as exc:  # pragma: no cover
             _LOG.debug("on_created path error: %s", exc)
 
-    def on_modified(self, event) -> None:  # type: ignore[no-untyped-def]
+    def on_modified(self, event) -> None:
         if event.is_directory:
             return
         try:
@@ -104,7 +104,7 @@ class _StableHandler(FileSystemEventHandler):
         except Exception as exc:  # pragma: no cover
             _LOG.debug("on_modified path error: %s", exc)
 
-    def on_moved(self, event) -> None:  # type: ignore[no-untyped-def]
+    def on_moved(self, event) -> None:
         if event.is_directory:
             return
         try:

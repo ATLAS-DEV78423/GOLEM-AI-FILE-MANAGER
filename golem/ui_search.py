@@ -299,7 +299,7 @@ class SearchPopup:
 
         icon_img = get_icon("search", size=18, color=COLORS.accent.DEFAULT, master=search_frame)
         icon_lbl = tk.Label(search_frame, image=icon_img, bg=COLORS.bg.panel, cursor="xterm")
-        icon_lbl.image = icon_img
+        icon_lbl.image = icon_img  # type: ignore[attr-defined]
         icon_lbl.pack(side="left", padx=(0, SPACING.sm))
 
         # Search entry — custom tk.Entry with orange border + glow
@@ -945,7 +945,7 @@ class SearchPopup:
 
         if icon_img:
             icon_lbl = tk.Label(center, image=icon_img, bg=COLORS.bg.panel)
-            icon_lbl.image = icon_img
+            icon_lbl.image = icon_img  # type: ignore[attr-defined]
             icon_lbl.pack(pady=(0, SPACING.md))
         else:
             tk.Label(
@@ -989,7 +989,7 @@ class SearchPopup:
 
             icon_img = get_icon("search", size=32, color=COLORS.fg.tertiary, master=center)
             icon_lbl = tk.Label(center, image=icon_img, bg=COLORS.bg.panel)
-            icon_lbl.image = icon_img
+            icon_lbl.image = icon_img  # type: ignore[attr-defined]
             icon_lbl.pack(pady=(0, SPACING.md))
         except Exception:
             tk.Label(center, text="\U0001f50d", font=("Segoe UI", 24), bg=COLORS.bg.panel).pack(

@@ -46,8 +46,8 @@ try:
         initialize,
         save_settings,
     )
-    from golem.search import search_with_fallback
     from golem.scanner import index_one_file, scan_folder
+    from golem.search import search_with_fallback
     from golem.summarizer import build_summarizer
     from golem.watcher import PollingWatcher
 except ImportError as exc:
