@@ -39,6 +39,7 @@ if (-not (Test-Path $python)) {
   & $systemPython -m venv $venv
   & $python -m pip install --upgrade pip
   & $python -m pip install -r requirements-build.txt
+  & $python -m pip install -e .
 }
 
 Write-Host "Step 1/4: Building GOLEM application bundle..." -ForegroundColor Cyan
