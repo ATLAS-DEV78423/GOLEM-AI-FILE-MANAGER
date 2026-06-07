@@ -22,7 +22,7 @@ import time
 from collections.abc import Callable
 from contextlib import contextmanager
 from pathlib import Path
-from typing import Any
+from typing import Any, cast
 
 from .indexer import cache_get as _cache_get
 from .indexer import cache_increment_hit as _cache_increment_hit
@@ -273,7 +273,7 @@ class CachedSummarizer(BaseSummarizer):
 
         # 2. Cache miss: call through with retry.
         try:
-            metadata = with_retry(
+            raw = with_retry(
                 self._wrapped.get_file_metadata,
                 args=(filename, text_snippet),
             )
@@ -285,6 +285,8 @@ class CachedSummarizer(BaseSummarizer):
             )
             fb = self._get_fallback()
             return fb.get_file_metadata(filename, text_snippet)
+
+        metadata = cast(FileMetadata, raw)
 
         # 3. Validate output and cache.
         try:
