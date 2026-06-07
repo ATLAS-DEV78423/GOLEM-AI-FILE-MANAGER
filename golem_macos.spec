@@ -49,11 +49,25 @@ a = Analysis(
         "golem.watcher",
         "golem.watcher_events",
 
-        # ── PyWebView (new for v2.1) ──
+        # ── PyWebView v6.x (all sub-modules) ──
         "webview",
+        "webview._version",
+        "webview.errors",
+        "webview.event",
+        "webview.guilib",
+        "webview.http",
+        "webview.localization",
+        "webview.menu",
+        "webview.models",
         "webview.platforms",
         "webview.platforms.cocoa",
+        "webview.screen",
+        "webview.state",
         "webview.util",
+        "webview.window",
+
+        # ── pywebview runtime dependency ──
+        "proxy_tools",
 
         # ── Hotkey ──
         "keyboard",

@@ -30,17 +30,22 @@ Write-Host "=== GOLEM Windows Build ===" -ForegroundColor Cyan
 $venv = Join-Path $root '.venv-build'
 $python = Join-Path $venv 'Scripts\python.exe'
 
+$systemPython = Find-Python
+if (-not $systemPython) {
+  throw "Python 3.11+ is required to build GOLEM. Install from https://python.org and retry."
+}
+
 if (-not (Test-Path $python)) {
-  $systemPython = Find-Python
-  if (-not $systemPython) {
-    throw "Python 3.11+ is required to build GOLEM. Install from https://python.org and retry."
-  }
   Write-Host "Creating build venv at $venv using $systemPython" -ForegroundColor Yellow
   & $systemPython -m venv $venv
-  & $python -m pip install --upgrade pip
-  & $python -m pip install -r requirements-build.txt
-  & $python -m pip install -e .
+} else {
+  Write-Host "Build venv exists at $venv; updating dependencies..." -ForegroundColor Yellow
 }
+
+& $python -m pip install --upgrade pip
+& $python -m pip install -r requirements-build.txt
+& $python -m pip install -e .
+& $python -m pip install proxy_tools  # ensure pywebview dependency is present
 
 Write-Host "Step 1/4: Building GOLEM application bundle..." -ForegroundColor Cyan
 & $python -m PyInstaller .\golem.spec --noconfirm --clean

@@ -48,19 +48,38 @@ a = Analysis(
         "golem.watcher",
         "golem.watcher_events",
 
-        # ── PyWebView (new for v2.1) ──
+        # ── PyWebView v6.x (all sub-modules) ──
         "webview",
+        "webview._version",
+        "webview.errors",
+        "webview.event",
+        "webview.guilib",
+        "webview.http",
+        "webview.localization",
+        "webview.menu",
+        "webview.models",
         "webview.platforms",
-        "webview.platforms.win32_edge",
         "webview.platforms.cocoa",
+        "webview.platforms.edgechromium",
         "webview.platforms.gtk",
-        "webview.platforms.gtk3",
+        "webview.platforms.mshtml",
+        "webview.platforms.qt",
+        "webview.platforms.winforms",
+        "webview.platforms.win32",
+        "webview.screen",
+        "webview.state",
         "webview.util",
+        "webview.window",
+
+        # ── pywebview runtime dependency ──
+        "proxy_tools",
 
         # ── Hotkey backends ──
         "keyboard",
         "pynput",
         "pynput.keyboard",
+        "pynput._util",
+        "pynput._util.win32",
 
         # ── Cryptography ──
         "cryptography",
