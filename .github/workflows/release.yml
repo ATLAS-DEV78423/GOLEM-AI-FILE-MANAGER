@@ -46,9 +46,12 @@ jobs:
           python -m pip install --upgrade pip
           pip install -r requirements.txt
           pip install -r requirements-build.txt
+          pip install -e .
 
       - name: Build Windows release artifacts
         shell: pwsh
+        env:
+          GOLEM_SKIP_SIGNING: "1"
         run: .\release_windows.ps1
 
       - name: Upload Windows artifacts
@@ -87,10 +90,12 @@ jobs:
           python -m pip install --upgrade pip
           pip install -r requirements.txt
           pip install -r requirements-build.txt
+          pip install -e .
 
       - name: Build macOS release artifacts (x86_64)
         env:
           PYTHON_BIN: python
+          GOLEM_SKIP_SIGNING: "1"
         run: GOLEM_ARCH=x86_64 bash ./build_macos.sh
 
       - name: Upload macOS x86_64 artifacts
@@ -127,10 +132,12 @@ jobs:
           python -m pip install --upgrade pip
           pip install -r requirements.txt
           pip install -r requirements-build.txt
+          pip install -e .
 
       - name: Build macOS release artifacts (arm64)
         env:
           PYTHON_BIN: python
+          GOLEM_SKIP_SIGNING: "1"
         run: GOLEM_ARCH=arm64 bash ./build_macos.sh
 
       - name: Upload macOS arm64 artifacts
@@ -167,6 +174,7 @@ jobs:
           python -m pip install --upgrade pip
           pip install -r requirements.txt
           pip install -r requirements-build.txt
+          pip install -e .
 
       - name: Install packaging tools
         run: |
@@ -217,6 +225,7 @@ jobs:
           python -m pip install --upgrade pip
           pip install -r requirements.txt
           pip install -r requirements-build.txt
+          pip install -e .
 
       - name: Install packaging tools
         run: |
