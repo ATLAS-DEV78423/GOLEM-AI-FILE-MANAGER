@@ -3,7 +3,7 @@ import sys
 from pathlib import Path
 
 APP_NAME = "GOLEM"
-APP_VERSION = "2.1.1"
+APP_VERSION = "2.2.0"
 DB_FILENAME = "golem.db"
 DEFAULT_CATEGORY = "Other"
 SUPPORTED_EXTENSIONS = {".txt", ".pdf", ".docx", ".xlsx"}

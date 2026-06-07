@@ -11,7 +11,7 @@ function Get-GolemVersion {
     return $match.Matches[0].Groups[1].Value
   }
 
-  return '2.1.0'
+  return '2.2.0'
 }
 
 function Find-Python {
