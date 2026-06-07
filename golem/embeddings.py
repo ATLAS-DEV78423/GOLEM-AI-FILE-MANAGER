@@ -32,15 +32,21 @@ _LOG = logging.getLogger(__name__)
 _DIM = 384
 
 try:  # pragma: no cover - only present when [semantic] extras are installed
-    from sentence_transformers import SentenceTransformer
+    from sentence_transformers import SentenceTransformer as _SentenceTransformer
 
     _HAS_ST = True
 except ImportError:  # pragma: no cover - default
-    SentenceTransformer = None
+    _SentenceTransformer = None  # type: ignore[assignment,misc]
     _HAS_ST = False
 
+# Local alias for the model type, defaulting to ``object`` when
+# sentence-transformers is not installed. Using a local name (not
+# reassigning the imported class) keeps mypy happy without an
+# unused-ignore on the annotation.
+_SentenceTransformerT = type(_SentenceTransformer) if _HAS_ST else object
+
 _MODEL_NAME = "all-MiniLM-L6-v2"
-_MODEL: SentenceTransformer | None = None  # type: ignore[valid-type]
+_MODEL: _SentenceTransformerT | None = None  # type: ignore[valid-type]
 
 
 def is_available() -> bool:
@@ -62,17 +68,17 @@ def dimension() -> int:
     return _DIM
 
 
-def _get_model() -> SentenceTransformer | None:
+def _get_model() -> _SentenceTransformerT | None:
     """Return the cached model, loading it on first use.
 
     Returns ``None`` when sentence-transformers is not installed.
     """
     global _MODEL
-    if not _HAS_ST or SentenceTransformer is None:
+    if not _HAS_ST or _SentenceTransformer is None:
         return None
     if _MODEL is None:
         try:
-            _MODEL = SentenceTransformer(_MODEL_NAME)
+            _MODEL = _SentenceTransformer(_MODEL_NAME)
         except Exception as exc:  # pragma: no cover - download failures
             _LOG.warning("Failed to load sentence-transformer model %s: %s", _MODEL_NAME, exc)
             return None

@@ -40,7 +40,7 @@ class TestEventWatcher(unittest.TestCase):
             seen: list[Path] = []
             t = start_event_watcher(Path(tmp), seen.append, stop)
             assert t is not None  # narrowed for mypy; we just checked availability
-            observer_thread, pump_thread = t
+            observer_thread, pump_thread, _observer = t
             try:
                 # Create a file, then wait for stability.
                 target = Path(tmp) / "hello.txt"

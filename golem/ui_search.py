@@ -263,9 +263,17 @@ class SearchPopup:
         )
 
         def _configure_inner(_e: tk.Event) -> None:
-            self._results_canvas.itemconfig(
-                self._window_id, width=self._results_canvas.winfo_width()
-            )
+            # Guard against teardown races: _results_canvas / _window_id can
+            # be None'd out by SearchPopup.hide() before Tk fires a final
+            # <Configure>. Dereferencing None here would propagate into
+            # Tk's C-level error handler and permanently desync the
+            # scrollbar. Also cache locally so the same teardown can't
+            # race between the None-check and the itemconfig call.
+            canvas = self._results_canvas
+            wid = self._window_id
+            if canvas is None or wid is None:
+                return
+            canvas.itemconfig(wid, width=canvas.winfo_width())
 
         self._results_canvas.bind("<Configure>", _configure_inner)
         self._results_frame.bind("<Configure>", self._on_frame_configure)
@@ -554,7 +562,7 @@ class SearchPopup:
         self._render_results()
         self._sync_scrollbar()
 
-    def _on_frame_configure(self, _event: tk.Event = None) -> None:
+    def _on_frame_configure(self, _event: tk.Event | None = None) -> None:
         if self._results_canvas is not None:
             self._results_canvas.configure(
                 scrollregion=self._results_canvas.bbox("all"),

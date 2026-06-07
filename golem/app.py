@@ -13,7 +13,7 @@ from dataclasses import dataclass
 from logging.handlers import RotatingFileHandler
 from pathlib import Path
 from queue import Queue
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from .ai import CachedSummarizer
 from .config import AppConfig
@@ -41,6 +41,9 @@ from .undo import undo_last
 from .watcher import PollingWatcher
 from .watcher_events import is_available as _event_watcher_available
 from .watcher_events import start_event_watcher
+
+if TYPE_CHECKING:
+    from watchdog.observers import Observer
 
 _LOG = logging.getLogger(__name__)
 _RELEASES_URL = "https://github.com/ATLAS-DEV78423/GOLEM-AI-FILE-MANAGER/releases"
@@ -176,7 +179,7 @@ class GolemApplication:
         )
         self.watcher: PollingWatcher | None = None
         self._event_watcher_stop: threading.Event | None = None
-        self._event_watcher_threads: tuple[threading.Thread, threading.Thread] | None = None
+        self._event_watcher_threads: tuple[threading.Thread, threading.Thread, Observer] | None = None
         self._watcher_thread: threading.Thread | None = None
         self._hotkey_listener: object | None = None
         self._hotkeys_started = False
@@ -684,8 +687,8 @@ class GolemApplication:
                 )
                 threads = None
             if threads is not None:
-                observer_thread, pump_thread = threads
-                self._event_watcher_threads = (observer_thread, pump_thread)
+                observer_thread, pump_thread, observer = threads
+                self._event_watcher_threads = (observer_thread, pump_thread, observer)
                 self._event_watcher_stop = stop
                 self._watcher_thread = pump_thread
                 logging.info("Event-driven watcher started (watchdog) for %s", watched)
@@ -706,8 +709,7 @@ class GolemApplication:
         if self._event_watcher_stop is not None:
             self._event_watcher_stop.set()
             if self._event_watcher_threads is not None:
-                observer_thread, pump_thread = self._event_watcher_threads
-                observer = getattr(observer_thread, "_golem_observer", None)
+                observer_thread, pump_thread, observer = self._event_watcher_threads
                 if observer is not None:
                     try:
                         observer.stop()

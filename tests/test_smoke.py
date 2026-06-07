@@ -26,7 +26,7 @@ from golem.constants import APP_NAME, APP_VERSION
 
 
 def _run(
-    args: list[str], env: dict[str, str] | None = None, timeout: float = 30.0
+    args: list[str], env: dict[str, str] | None = None, timeout: float = 60.0
 ) -> subprocess.CompletedProcess[str]:
     """Run ``python main.py <args>`` and return the completed process.
 

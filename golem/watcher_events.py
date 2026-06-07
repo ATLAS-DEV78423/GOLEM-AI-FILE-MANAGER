@@ -36,8 +36,8 @@ _STABILITY_SECONDS = 2.0
 _PUMP_INTERVAL_SECONDS = 0.5
 
 try:  # pragma: no cover - watchdog is optional
-    from watchdog.events import FileSystemEventHandler  # type: ignore[import-untyped]
-    from watchdog.observers import Observer  # type: ignore[import-untyped]
+    from watchdog.events import FileSystemEventHandler
+    from watchdog.observers import Observer
 
     _HAS_WATCHDOG = True
 except ImportError:  # pragma: no cover
@@ -45,8 +45,8 @@ except ImportError:  # pragma: no cover
     # the class definition below never sees ``None`` as a base class.
     # ``start_event_watcher`` still returns ``None`` when ``_HAS_WATCHDOG``
     # is False, so ``_StableHandler`` is never instantiated.
-    FileSystemEventHandler = object  # type: ignore[misc,assignment]
-    Observer = None  # type: ignore[assignment]
+    FileSystemEventHandler = object
+    Observer = None
     _HAS_WATCHDOG = False
 
 
@@ -139,7 +139,7 @@ def start_event_watcher(
     folder: Path,
     on_new_file: Callable[[Path], None],
     stop: threading.Event,
-) -> tuple[threading.Thread, threading.Thread] | None:
+) -> tuple[threading.Thread, threading.Thread, Observer] | None:
     """Start a watchdog observer on ``folder`` (recursive).
 
     Args:
@@ -151,9 +151,12 @@ def start_event_watcher(
             The returned threads will exit when this is set.
 
     Returns:
-        ``(observer_thread, pump_thread)`` if watchdog is available,
-        otherwise ``None`` so the caller can fall back to the polling
-        watcher in :mod:`golem.watcher`.
+        ``(observer_thread, pump_thread, observer)`` if watchdog is
+        available, otherwise ``None`` so the caller can fall back to
+        the polling watcher in :mod:`golem.watcher`. The observer is
+        returned so the caller can call ``observer.stop()`` during
+        shutdown without resorting to dynamic attribute attachment on
+        stdlib ``Thread`` objects.
     """
     if not _HAS_WATCHDOG or FileSystemEventHandler is None or Observer is None:
         return None
@@ -162,8 +165,12 @@ def start_event_watcher(
         observer = Observer()
         observer.schedule(handler, str(folder), recursive=True)
         observer.start()
-    except Exception as exc:  # pragma: no cover
-        _LOG.warning("watchdog Observer.start() failed: %s", exc)
+    except (OSError, RuntimeError, AttributeError) as exc:  # pragma: no cover
+        # OSError: file/folder gone or permission denied mid-startup
+        # RuntimeError: native observer already started/stopped
+        # AttributeError: defensive — stub mismatch when watchdog is
+        # installed without its type stubs in the venv
+        _LOG.warning("watchdog Observer.start() failed: %s", exc, exc_info=True)
         return None
 
     observer_thread = threading.Thread(
@@ -171,7 +178,5 @@ def start_event_watcher(
         daemon=True,
         name="golem-watchdog-observer",
     )
-    observer_thread._golem_observer = observer
-    observer_thread._golem_stop = stop
     observer_thread.start()
-    return observer_thread, handler._pump
+    return observer_thread, handler._pump, observer
